@@ -1,8 +1,7 @@
-const CACHE = 'rrd-pcsantacruz-v1';
+const CACHE = 'rrd-pcsantacruz-v2';
 const ASSETS = [
-  '/rrd-pcsantacruz/',
-  '/rrd-pcsantacruz/index.html',
-  '/rrd-pcsantacruz/manifest.json'
+  './index.html',
+  './manifest.json'
 ];
 
 self.addEventListener('install', e => {
@@ -20,19 +19,22 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Para APIs externas (clima, sismos) siempre red primero
+  // APIs externas: siempre red
   if (e.request.url.includes('api.open-meteo') ||
       e.request.url.includes('earthquake.usgs') ||
+      e.request.url.includes('nominatim') ||
       e.request.url.includes('cartocdn') ||
       e.request.url.includes('unpkg.com') ||
       e.request.url.includes('fonts.googleapis')) {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
-    );
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
-  // Para assets locales: cache primero
+  // index.html: red primero, fallback cache
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    fetch(e.request).then(resp => {
+      const clone = resp.clone();
+      caches.open(CACHE).then(c => c.put(e.request, clone));
+      return resp;
+    }).catch(() => caches.match(e.request))
   );
 });
