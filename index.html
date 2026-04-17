@@ -9,10 +9,10 @@
 <meta name="theme-color" content="#0a0e14">
 <title>RRD — Protección Civil Santa Cruz</title>
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icons/icon-192x192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
 :root {
   --bg: #0a0e14;
@@ -938,11 +938,18 @@ body {
 
     <div class="form-group">
       <label class="form-label">Foto</label>
-      <div class="foto-area" onclick="document.getElementById('foto-input').click()">
-        <div class="foto-icon">📷</div>
-        <div class="foto-text">Tocar para tomar foto</div>
+      <div style="display:flex;gap:8px;">
+        <div class="foto-area" style="flex:1" onclick="document.getElementById('foto-camara').click()">
+          <div class="foto-icon">📷</div>
+          <div class="foto-text">Cámara</div>
+        </div>
+        <div class="foto-area" style="flex:1" onclick="document.getElementById('foto-galeria').click()">
+          <div class="foto-icon">🖼️</div>
+          <div class="foto-text">Galería</div>
+        </div>
       </div>
-      <input type="file" id="foto-input" accept="image/*" capture="environment" onchange="previewFoto(event)">
+      <input type="file" id="foto-camara" accept="image/*" capture="environment" onchange="previewFoto(event)" style="display:none">
+      <input type="file" id="foto-galeria" accept="image/*" onchange="previewFoto(event)" style="display:none">
       <img id="foto-preview" alt="Vista previa">
     </div>
 
@@ -1289,18 +1296,46 @@ let registros = JSON.parse(localStorage.getItem('rrd_registros') || '[]');
 let fotoDataUrl = null;
 let modalLat = null, modalLon = null;
 
-function abrirModal() {
+let modalLugar = null;
+
+async function geocodificarInverso(lat, lon) {
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=es`,
+      { headers: { 'Accept-Language': 'es' } }
+    );
+    const data = await resp.json();
+    const addr = data.address || {};
+    const partes = [
+      addr.village || addr.town || addr.city || addr.municipality || addr.hamlet || '',
+      addr.county || addr.state_district || '',
+      addr.state || ''
+    ].filter(Boolean);
+    return partes.slice(0, 2).join(', ') || data.display_name?.split(',').slice(0,2).join(',') || '';
+  } catch {
+    return '';
+  }
+}
+
+async function abrirModal() {
   document.getElementById('modal-overlay').classList.add('open');
   document.getElementById('reg-tipo').value = '';
   document.getElementById('reg-obs').value = '';
   document.getElementById('foto-preview').style.display = 'none';
+  document.getElementById('foto-camara').value = '';
+  document.getElementById('foto-galeria').value = '';
   fotoDataUrl = null;
+  modalLugar = null;
 
   if (userLat) {
     modalLat = userLat;
     modalLon = userLon;
     document.getElementById('modal-coords').innerHTML =
-      `📍 ${userLat.toFixed(6)}, ${userLon.toFixed(6)}`;
+      `📍 ${userLat.toFixed(6)}, ${userLon.toFixed(6)} · Obteniendo lugar...`;
+    const lugar = await geocodificarInverso(userLat, userLon);
+    modalLugar = lugar;
+    document.getElementById('modal-coords').innerHTML =
+      `📍 ${lugar ? lugar + '<br>' : ''}${userLat.toFixed(6)}, ${userLon.toFixed(6)}`;
   } else {
     modalLat = null; modalLon = null;
     document.getElementById('modal-coords').innerHTML = '📍 GPS no disponible';
@@ -1335,6 +1370,7 @@ function guardarRegistro() {
     obs: document.getElementById('reg-obs').value,
     lat: modalLat,
     lon: modalLon,
+    lugar: modalLugar || '',
     foto: fotoDataUrl,
     fecha: new Date().toISOString()
   };
@@ -1352,12 +1388,158 @@ function eliminarRegistro(id) {
   renderRegistros();
 }
 
+async function generarPDF(id) {
+  const reg = registros.find(r => r.id === id);
+  if (!reg) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const W = 210, margin = 16;
+  let y = margin;
+
+  // Fondo oscuro header
+  doc.setFillColor(10, 14, 20);
+  doc.rect(0, 0, W, 40, 'F');
+
+  // Título
+  doc.setTextColor(249, 115, 22);
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PROTECCIÓN CIVIL SANTA CRUZ', margin, 16);
+
+  doc.setTextColor(34, 211, 238);
+  doc.setFontSize(12);
+  doc.text('REDUCCIÓN DE RIESGO DE DESASTRES', margin, 24);
+
+  doc.setTextColor(200, 200, 200);
+  doc.setFontSize(9);
+  const fecha = new Date(reg.fecha).toLocaleString('es-AR', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
+  doc.text(`Reporte de Operativo · ${fecha}`, margin, 33);
+
+  y = 50;
+
+  // Tipo operativo
+  doc.setFillColor(21, 30, 42);
+  doc.roundedRect(margin, y, W - margin*2, 22, 3, 3, 'F');
+  doc.setTextColor(249, 115, 22);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text(reg.tipo.toUpperCase(), margin + 6, y + 9);
+  doc.setTextColor(150, 150, 150);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Responsable: ${reg.responsable}`, margin + 6, y + 17);
+  y += 28;
+
+  // Ubicación
+  doc.setFillColor(15, 23, 33);
+  doc.roundedRect(margin, y, W - margin*2, reg.lugar ? 28 : 20, 3, 3, 'F');
+  doc.setTextColor(34, 211, 238);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('UBICACIÓN', margin + 6, y + 8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(220, 220, 220);
+  doc.setFontSize(9);
+  if (reg.lugar) {
+    doc.text(reg.lugar, margin + 6, y + 15);
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(8);
+    doc.text(`Lat: ${reg.lat?.toFixed(6) || '--'}  ·  Lon: ${reg.lon?.toFixed(6) || '--'}`, margin + 6, y + 22);
+    y += 34;
+  } else if (reg.lat) {
+    doc.text(`Lat: ${reg.lat.toFixed(6)}  ·  Lon: ${reg.lon.toFixed(6)}`, margin + 6, y + 15);
+    y += 26;
+  } else {
+    doc.text('Sin datos GPS', margin + 6, y + 15);
+    y += 26;
+  }
+
+  // Link Google Maps
+  if (reg.lat) {
+    doc.setTextColor(34, 211, 238);
+    doc.setFontSize(8);
+    const mapsUrl = `https://maps.google.com/?q=${reg.lat},${reg.lon}`;
+    doc.textWithLink('Ver en Google Maps →', margin, y, { url: mapsUrl });
+    y += 10;
+  }
+
+  // Observaciones
+  if (reg.obs) {
+    y += 4;
+    doc.setFillColor(15, 23, 33);
+    const obsLines = doc.splitTextToSize(reg.obs, W - margin*2 - 12);
+    const obsH = obsLines.length * 5 + 14;
+    doc.roundedRect(margin, y, W - margin*2, obsH, 3, 3, 'F');
+    doc.setTextColor(34, 211, 238);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OBSERVACIONES', margin + 6, y + 8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(220, 220, 220);
+    doc.setFontSize(9);
+    doc.text(obsLines, margin + 6, y + 15);
+    y += obsH + 8;
+  }
+
+  // Foto
+  if (reg.foto) {
+    y += 4;
+    doc.setTextColor(34, 211, 238);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REGISTRO FOTOGRÁFICO', margin, y);
+    y += 6;
+    try {
+      const maxW = W - margin*2;
+      const img = new Image();
+      img.src = reg.foto;
+      await new Promise(r => { img.onload = r; });
+      const ratio = img.naturalHeight / img.naturalWidth;
+      const imgH = Math.min(maxW * ratio, 120);
+      doc.addImage(reg.foto, 'JPEG', margin, y, maxW, imgH);
+      y += imgH + 6;
+    } catch(e) {}
+  }
+
+  // Footer
+  const pageH = 297;
+  doc.setFillColor(10, 14, 20);
+  doc.rect(0, pageH - 14, W, 14, 'F');
+  doc.setTextColor(100, 116, 139);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Protección Civil Santa Cruz · Reducción de Riesgo de Desastres · L10', margin, pageH - 5);
+  doc.text(fecha, W - margin, pageH - 5, { align: 'right' });
+
+  // Guardar o compartir
+  const nombreArchivo = `RRD_${reg.tipo.replace(/\s+/g,'_')}_${new Date(reg.fecha).toISOString().slice(0,10)}.pdf`;
+
+  // Intentar Web Share API (nativo en Android/iOS)
+  const pdfBlob = doc.output('blob');
+  if (navigator.share && navigator.canShare) {
+    const file = new File([pdfBlob], nombreArchivo, { type: 'application/pdf' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Reporte RRD', text: `${reg.tipo} · ${reg.lugar || ''}` });
+        return;
+      } catch(e) {}
+    }
+  }
+  // Fallback: descargar
+  doc.save(nombreArchivo);
+}
+
 function compartirWsp(id) {
   const reg = registros.find(r => r.id === id);
   if (!reg) return;
   const fecha = new Date(reg.fecha).toLocaleString('es-AR');
   const ubicacion = reg.lat ? `https://maps.google.com/?q=${reg.lat},${reg.lon}` : 'Sin GPS';
-  const texto = `📋 *REGISTRO PC SANTA CRUZ*\n*Tipo:* ${reg.tipo}\n*Responsable:* ${reg.responsable}\n*Fecha:* ${fecha}\n*Ubicación:* ${ubicacion}\n*Observaciones:* ${reg.obs || '—'}`;
+  const texto = `📋 *REPORTE RRD · PC SANTA CRUZ*\n*Tipo:* ${reg.tipo}\n*Responsable:* ${reg.responsable}\n*Fecha:* ${fecha}${reg.lugar ? '\n*Lugar:* ' + reg.lugar : ''}\n*Ubicación:* ${ubicacion}\n*Observaciones:* ${reg.obs || '—'}`;
   window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
 }
 
@@ -1374,6 +1556,7 @@ function renderRegistros() {
       hour:'2-digit', minute:'2-digit'
     });
     const coordStr = reg.lat ? `${reg.lat.toFixed(5)}, ${reg.lon.toFixed(5)}` : 'Sin GPS';
+    const lugarStr = reg.lugar ? `<div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--accent2);margin-bottom:2px;">📍 ${reg.lugar}</div>` : '';
     const fotoHTML = reg.foto ? `<img src="${reg.foto}" class="registro-foto" alt="foto">` : '';
 
     return `
@@ -1383,12 +1566,14 @@ function renderRegistros() {
           <span class="registro-fecha">${fecha}</span>
         </div>
         <div class="registro-body">
-          <div class="registro-coords">📍 ${coordStr} · ${reg.responsable}</div>
+          ${lugarStr}
+          <div class="registro-coords">${coordStr} · ${reg.responsable}</div>
           ${reg.obs ? `<div class="registro-obs">${reg.obs}</div>` : ''}
           ${fotoHTML}
         </div>
         <div class="registro-actions">
-          <button class="btn-wsp" onclick="compartirWsp(${reg.id})">📲 WhatsApp</button>
+          <button class="btn-wsp" style="background:#1e3a5f;color:var(--accent2);border:1px solid var(--accent2)" onclick="generarPDF(${reg.id})">📄 PDF</button>
+          <button class="btn-wsp" onclick="compartirWsp(${reg.id})">📲 WSP</button>
           <button class="btn-del" onclick="eliminarRegistro(${reg.id})">🗑️</button>
         </div>
       </div>`;
@@ -1403,15 +1588,5 @@ initGPS();
 renderRegistros();
 </script>
 
-
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(() => console.log('SW registrado'))
-      .catch(e => console.log('SW error:', e));
-  });
-}
-</script>
 </body>
 </html>
