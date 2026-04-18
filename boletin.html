@@ -366,8 +366,8 @@ tbody td:first-child { text-align: left; padding-left: 12px; font-size: 0.7rem; 
             <th>Mín °C</th>
             <th>S.T. Máx</th>
             <th>S.T. Mín</th>
-            <th>Viento</th>
-            <th>Ráfagas</th>
+            <th>Viento km/h</th>
+            <th>Ráfagas km/h</th>
             <th>Dir.</th>
             <th>Precip.</th>
             <th>Condición</th>
@@ -546,8 +546,8 @@ function renderTabla() {
       <td class="t-min">${d.tmin}°</td>
       <td>${d.stmax}°</td>
       <td>${d.stmin}°</td>
-      <td class="${vc}">${d.viento}</td>
-      <td class="${vc}">${d.rafagas}</td>
+      <td class="${vc}">${d.viento} km/h</td>
+      <td class="${vc}">${d.rafagas} km/h</td>
       <td style="font-weight:600;color:var(--accent2)">${gradosAFlecha(d.dirGrados)} ${d.dirCardinal}</td>
       <td style="font-size:0.6rem">${d.precip}</td>
       <td style="font-size:0.6rem">${d.condicion}</td>
