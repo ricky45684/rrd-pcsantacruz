@@ -734,6 +734,26 @@ body {
 
 
 
+.btn-boletin {
+  width: 100%;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  color: var(--accent);
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.btn-boletin:active { opacity: 0.85; transform: scale(0.98); }
+
 </style>
 </head>
 <body>
@@ -796,7 +816,7 @@ body {
 
     <!-- BOLETÍN PROVINCIAL -->
     <button class="btn-boletin" onclick="window.open('boletin.html', '_blank')">
-      <span>🗺️</span> BOLETÍN PROVINCIAL — 29 LOCALIDADES
+      <span>🗺️</span> BOLETÍN METEOROLÓGICO PROVINCIAL
     </button>
 
     <!-- LINKS -->
