@@ -680,135 +680,136 @@ function descargarImagen(blob, nombre) {
 
 async function generarPDF() {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-  const W = 297, H = 210, margin = 10;
+  const W = 210, H = 297, margin = 10;
   let y = margin;
 
   // Header
   doc.setFillColor(10, 14, 20);
-  doc.rect(0, 0, W, 28, 'F');
+  doc.rect(0, 0, W, 30, 'F');
   doc.setTextColor(249, 115, 22);
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('PROTECCIÓN CIVIL SANTA CRUZ', margin, 10);
   doc.setTextColor(34, 211, 238);
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.text('REDUCCIÓN DE RIESGO DE DESASTRES · BOLETÍN METEOROLÓGICO DIARIO', margin, 17);
   doc.setTextColor(150, 150, 150);
   doc.setFontSize(7);
-  doc.text(`Generado: ${fechaGeneracion} · Fuente: Open-Meteo (openmeteo.com)`, margin, 23);
+  doc.text(`Generado: ${fechaGeneracion} · Fuente: Open-Meteo`, margin, 24);
+  y = 36;
 
-  y = 32;
-
-  // Columnas
-  const cols = [40, 12, 12, 14, 14, 14, 16, 12, 30, 38];
-  const headers = ['Localidad','Máx °C','Mín °C','S.T.Máx','S.T.Mín','Viento','Ráfagas','Dir.','Precipitación','Condición'];
+  // Columnas portrait — más anchas, fuente más grande
+  const cols = [42, 14, 14, 14, 16, 18, 14, 42];
+  const headers = ['Localidad','Máx°','Mín°','S.T.','Viento','Ráfagas','Dir.','Precipitación'];
 
   // Header tabla
   doc.setFillColor(27, 58, 107);
   let xh = margin;
-  cols.forEach((w, i) => { doc.rect(xh, y, w, 7, 'F'); xh += w; });
+  cols.forEach(w => { doc.rect(xh, y, w, 8, 'F'); xh += w; });
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(6);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   xh = margin;
   headers.forEach((h, i) => {
-    doc.text(h, xh + cols[i]/2, y + 4.5, { align: 'center' });
+    doc.text(h, xh + cols[i]/2, y + 5.2, { align: 'center' });
     xh += cols[i];
   });
-  y += 7;
+  y += 8;
 
   // Filas
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  const rowH = 6.5;
+  const rowH = 8;
 
   datosGlobales.forEach((d, idx) => {
-    if (y + rowH > H - 14) {
+    if (y + rowH > H - 18) {
       doc.addPage();
       y = margin;
+      // Repetir header en nueva página
+      doc.setFillColor(27, 58, 107);
+      let xhp = margin;
+      cols.forEach(w => { doc.rect(xhp, y, w, 8, 'F'); xhp += w; });
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+      xhp = margin;
+      headers.forEach((h, i) => {
+        doc.text(h, xhp + cols[i]/2, y + 5.2, { align: 'center' });
+        xhp += cols[i];
+      });
+      y += 8;
     }
+
     const fill = idx % 2 === 0 ? [255,255,255] : [244,246,248];
     doc.setFillColor(...fill);
     let xr = margin;
     cols.forEach(w => { doc.rect(xr, y, w, rowH, 'F'); xr += w; });
-
-    // Borde línea
-    doc.setDrawColor(204, 204, 204);
+    doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.1);
     doc.line(margin, y + rowH, margin + cols.reduce((a,b)=>a+b,0), y + rowH);
 
     if (!d.ok) {
-      doc.setTextColor(150,150,150);
-      doc.text(d.nombre, margin + 2, y + 4.2);
-      doc.text('Sin datos', margin + cols[0] + 20, y + 4.2, { align: 'center' });
+      doc.setTextColor(150,150,150); doc.setFontSize(7);
+      doc.text(d.nombre, margin + 2, y + 5.2);
+      doc.text('Sin datos', margin + cols[0] + 30, y + 5.2, {align:'center'});
     } else {
       const vc = d.rafagas > 110 ? [192,57,43] : d.rafagas >= 90 ? [230,126,34] : d.rafagas >= 60 ? [243,156,18] : [26,122,60];
 
-      doc.setTextColor(30,30,30);
-      doc.text(d.nombre, margin + 2, y + 4.2);
+      // Localidad
+      doc.setTextColor(30,30,30); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+      doc.text(d.nombre, margin + 2, y + 5.2);
 
       let xv = margin + cols[0];
       // Máx
-      doc.setTextColor(192, 57, 43); doc.setFont('helvetica','bold');
-      doc.text(`${d.tmax}°`, xv + cols[1]/2, y + 4.2, {align:'center'}); xv += cols[1];
+      doc.setFontSize(8); doc.setFont('helvetica','bold');
+      doc.setTextColor(192,57,43);
+      doc.text(`${d.tmax}°`, xv + cols[1]/2, y + 5.2, {align:'center'}); xv += cols[1];
       // Mín
-      doc.setTextColor(22, 140, 180);
-      doc.text(`${d.tmin}°`, xv + cols[2]/2, y + 4.2, {align:'center'}); xv += cols[2];
-      // ST
-      doc.setTextColor(80,80,80); doc.setFont('helvetica','normal');
-      doc.text(`${d.stmax}°`, xv + cols[3]/2, y + 4.2, {align:'center'}); xv += cols[3];
-      doc.text(`${d.stmin}°`, xv + cols[4]/2, y + 4.2, {align:'center'}); xv += cols[4];
+      doc.setTextColor(22,140,180);
+      doc.text(`${d.tmin}°`, xv + cols[2]/2, y + 5.2, {align:'center'}); xv += cols[2];
+      // ST máx
+      doc.setTextColor(80,80,80); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+      doc.text(`${d.stmax}°`, xv + cols[3]/2, y + 5.2, {align:'center'}); xv += cols[3];
       // Viento
-      doc.setTextColor(...vc);
-      doc.text(`${d.viento}`, xv + cols[5]/2, y + 4.2, {align:'center'}); xv += cols[5];
-      doc.setFont('helvetica','bold');
-      doc.text(`${d.rafagas}`, xv + cols[6]/2, y + 4.2, {align:'center'}); xv += cols[6];
+      doc.setTextColor(...vc); doc.setFontSize(7.5);
+      doc.text(`${d.viento}`, xv + cols[4]/2, y + 5.2, {align:'center'}); xv += cols[4];
+      // Ráfagas
+      doc.setFont('helvetica','bold'); doc.setFontSize(8);
+      doc.text(`${d.rafagas}`, xv + cols[5]/2, y + 5.2, {align:'center'}); xv += cols[5];
       // Dirección
-      doc.setTextColor(34,211,238); doc.setFont('helvetica','bold');
-      doc.text(d.dirCardinal || '-', xv + cols[7]/2, y + 4.2, {align:'center'}); xv += cols[7];
-      // Precip y condicion
-      doc.setTextColor(30,30,30); doc.setFont('helvetica','normal'); doc.setFontSize(5.5);
-      doc.text(d.precip, xv + cols[8]/2, y + 4.2, {align:'center'}); xv += cols[8];
-      doc.text(d.condicion, xv + cols[9]/2, y + 4.2, {align:'center'});
-      doc.setFontSize(6.5);
+      doc.setTextColor(34,211,238); doc.setFontSize(7.5);
+      doc.text(d.dirCardinal || '-', xv + cols[6]/2, y + 5.2, {align:'center'}); xv += cols[6];
+      // Precipitación
+      doc.setTextColor(30,30,30); doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
+      doc.text(d.precip, xv + cols[7]/2, y + 5.2, {align:'center', maxWidth: cols[7]-2});
     }
     y += rowH;
   });
 
   // Leyenda
-  y += 4;
-  doc.setFontSize(6); doc.setFont('helvetica','bold');
-  doc.setTextColor(27,58,107); doc.text('RÁFAGAS:', margin, y);
-  doc.setFont('helvetica','normal');
-  doc.setTextColor(26,122,60); doc.text('■ < 60 km/h Verde · Sin alerta', margin+18, y);
-  doc.setTextColor(243,156,18); doc.text('■ 60-90 km/h Amarillo · Alerta', margin+70, y);
-  doc.setTextColor(230,126,34); doc.text('■ 90-110 km/h Naranja · Alerta', margin+122, y);
-  doc.setTextColor(192,57,43); doc.text('■ > 110 km/h Rojo · Extremo ⛔', margin+174, y);
+  y += 5;
+  if (y > H - 25) { doc.addPage(); y = margin; }
+  doc.setFontSize(7); doc.setFont('helvetica','bold');
+  doc.setTextColor(27,58,107); doc.text('ESCALA DE RÁFAGAS:', margin, y);
+  y += 6;
+  const leyenda = [
+    { color: [26,122,60],   text: '■ < 60 km/h — Verde · Sin alerta' },
+    { color: [243,156,18],  text: '■ 60–90 km/h — Amarillo · Alerta' },
+    { color: [230,126,34],  text: '■ 90–110 km/h — Naranja · Alerta' },
+    { color: [192,57,43],   text: '■ > 110 km/h — Rojo · Extremo ⛔' },
+  ];
+  leyenda.forEach(l => {
+    doc.setTextColor(...l.color); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+    doc.text(l.text, margin, y);
+    y += 6;
+  });
 
   // Footer
   doc.setFillColor(10,14,20);
-  doc.rect(0, H-8, W, 8, 'F');
-  doc.setTextColor(130,130,130); doc.setFontSize(6);
-  doc.text(`Protección Civil Santa Cruz · L10 · Gobernador Lista 327, Río Gallegos · ${fechaGeneracion}`, W/2, H-3, {align:'center'});
+  doc.rect(0, H-10, W, 10, 'F');
+  doc.setTextColor(130,130,130); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+  doc.text(`Protección Civil Santa Cruz · L10 · ${fechaGeneracion}`, W/2, H-4, {align:'center'});
 
-  const nombre = `Boletin_Meteo_SantaCruz_${new Date().toISOString().slice(0,10)}.pdf`;
-  const pdfBlob = doc.output('blob');
-
-  // Web Share API nativa para Android
-  if (navigator.share && navigator.canShare) {
-    const file = new File([pdfBlob], nombre, { type: 'application/pdf' });
-    if (navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: 'Boletín Meteorológico Santa Cruz' });
-        return;
-      } catch(e) {
-        if (e.name === 'AbortError') return;
-      }
-    }
-  }
-  // Fallback: descarga directa
   const blobUrl = doc.output('bloburl');
   window.open(blobUrl, '_blank');
 }
