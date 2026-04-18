@@ -340,7 +340,7 @@ tbody td:first-child { text-align: left; padding-left: 12px; font-size: 0.7rem; 
 <div class="container">
 
   <button class="btn-generar" id="btn-gen" onclick="iniciarBoletin()">
-    🌤️ GENERAR BOLETÍN DEL DÍA
+    🔄 ACTUALIZAR BOLETÍN
   </button>
 
   <div class="progress-card" id="progress-card">
@@ -859,6 +859,11 @@ function generarPDF() {
     </div>
   </div>
 </div>
+
+<script>
+// Auto-inicio al abrir la página
+window.addEventListener('load', () => iniciarBoletin());
+</script>
 
 </body>
 </html>
