@@ -678,7 +678,7 @@ function descargarImagen(blob, nombre) {
 
 
 
-function generarPDF() {
+async function generarPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
@@ -794,7 +794,23 @@ function generarPDF() {
   doc.text(`Protección Civil Santa Cruz · L10 · Gobernador Lista 327, Río Gallegos · ${fechaGeneracion}`, W/2, H-3, {align:'center'});
 
   const nombre = `Boletin_Meteo_SantaCruz_${new Date().toISOString().slice(0,10)}.pdf`;
-  doc.save(nombre);
+  const pdfBlob = doc.output('blob');
+
+  // Web Share API nativa para Android
+  if (navigator.share && navigator.canShare) {
+    const file = new File([pdfBlob], nombre, { type: 'application/pdf' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Boletín Meteorológico Santa Cruz' });
+        return;
+      } catch(e) {
+        if (e.name === 'AbortError') return;
+      }
+    }
+  }
+  // Fallback: descarga directa
+  const blobUrl = doc.output('bloburl');
+  window.open(blobUrl, '_blank');
 }
 </script>
 <!-- MODAL LOCALIDAD -->
