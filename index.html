@@ -924,11 +924,21 @@ body {
 
     <div class="form-group">
       <label class="form-label">Responsable</label>
-      <select class="form-select" id="reg-responsable">
-        <option value="Richard">Richard</option>
-        <option value="Roxy">Roxy</option>
-        <option value="Ambos">Ambos</option>
+      <input class="form-input" id="reg-responsable" type="text" placeholder="Nombre del responsable..." autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Móvil</label>
+      <select class="form-select" id="reg-movil" onchange="toggleMovilOtro(this.value)">
+        <option value="">Sin móvil asignado</option>
+        <option value="Móvil 1">Móvil 1</option>
+        <option value="Móvil 2">Móvil 2</option>
+        <option value="Móvil 5">Móvil 5</option>
+        <option value="Móvil 6">Móvil 6</option>
+        <option value="Cuatriciclo">Cuatriciclo</option>
+        <option value="__otro__">Otro...</option>
       </select>
+      <input class="form-input" id="reg-movil-otro" type="text" placeholder="Especificar móvil o medio..." autocomplete="off" style="display:none;margin-top:8px">
     </div>
 
     <div class="form-group">
@@ -1296,6 +1306,18 @@ let registros = JSON.parse(localStorage.getItem('rrd_registros') || '[]');
 let fotoDataUrl = null;
 let modalLat = null, modalLon = null;
 
+function toggleMovilOtro(val) {
+  const otro = document.getElementById('reg-movil-otro');
+  otro.style.display = val === '__otro__' ? 'block' : 'none';
+  if (val !== '__otro__') otro.value = '';
+}
+
+function getMovil() {
+  const sel = document.getElementById('reg-movil').value;
+  if (sel === '__otro__') return document.getElementById('reg-movil-otro').value.trim() || 'Otro';
+  return sel;
+}
+
 let modalLugar = null;
 
 async function geocodificarInverso(lat, lon) {
@@ -1321,6 +1343,10 @@ async function abrirModal() {
   document.getElementById('modal-overlay').classList.add('open');
   document.getElementById('reg-tipo').value = '';
   document.getElementById('reg-obs').value = '';
+  document.getElementById('reg-responsable').value = '';
+  document.getElementById('reg-movil').value = '';
+  document.getElementById('reg-movil-otro').style.display = 'none';
+  document.getElementById('reg-movil-otro').value = '';
   document.getElementById('foto-preview').style.display = 'none';
   document.getElementById('foto-camara').value = '';
   document.getElementById('foto-galeria').value = '';
@@ -1362,11 +1388,14 @@ function previewFoto(event) {
 function guardarRegistro() {
   const tipo = document.getElementById('reg-tipo').value;
   if (!tipo) { alert('Seleccioná el tipo de operativo.'); return; }
+  const responsable = document.getElementById('reg-responsable').value.trim();
+  if (!responsable) { alert('Ingresá el nombre del responsable.'); return; }
 
   const reg = {
     id: Date.now(),
     tipo,
-    responsable: document.getElementById('reg-responsable').value,
+    responsable,
+    movil: getMovil(),
     obs: document.getElementById('reg-obs').value,
     lat: modalLat,
     lon: modalLon,
@@ -1432,7 +1461,8 @@ async function generarPDF(id) {
   doc.setTextColor(150, 150, 150);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Responsable: ${reg.responsable}`, margin + 6, y + 17);
+  const movilStr = reg.movil ? ` · ${reg.movil}` : '';
+  doc.text(`Responsable: ${reg.responsable}${movilStr}`, margin + 6, y + 17);
   y += 28;
 
   // Ubicación
@@ -1539,7 +1569,7 @@ function compartirWsp(id) {
   if (!reg) return;
   const fecha = new Date(reg.fecha).toLocaleString('es-AR');
   const ubicacion = reg.lat ? `https://maps.google.com/?q=${reg.lat},${reg.lon}` : 'Sin GPS';
-  const texto = `📋 *REPORTE RRD · PC SANTA CRUZ*\n*Tipo:* ${reg.tipo}\n*Responsable:* ${reg.responsable}\n*Fecha:* ${fecha}${reg.lugar ? '\n*Lugar:* ' + reg.lugar : ''}\n*Ubicación:* ${ubicacion}\n*Observaciones:* ${reg.obs || '—'}`;
+  const texto = `📋 *REPORTE RRD · PC SANTA CRUZ*\n*Tipo:* ${reg.tipo}\n*Responsable:* ${reg.responsable}${reg.movil ? ' · ' + reg.movil : ''}\n*Fecha:* ${fecha}${reg.lugar ? '\n*Lugar:* ' + reg.lugar : ''}\n*Ubicación:* ${ubicacion}\n*Observaciones:* ${reg.obs || '—'}`;
   window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
 }
 
@@ -1567,7 +1597,7 @@ function renderRegistros() {
         </div>
         <div class="registro-body">
           ${lugarStr}
-          <div class="registro-coords">${coordStr} · ${reg.responsable}</div>
+          <div class="registro-coords">${coordStr} · ${reg.responsable}${reg.movil ? ' · ' + reg.movil : ''}</div>
           ${reg.obs ? `<div class="registro-obs">${reg.obs}</div>` : ''}
           ${fotoHTML}
         </div>
