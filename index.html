@@ -1882,9 +1882,19 @@ let boletinIniciado = false;
 function toggleBoletin() {
   const sub = document.getElementById('subpanel-boletin');
   sub.classList.toggle('open');
-  if (sub.classList.contains('open') && !boletinIniciado) {
-    boletinIniciado = true;
-    iniciarBoletin();
+  if (sub.classList.contains('open')) {
+    // Scroll al subpanel
+    setTimeout(() => {
+      sub.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    if (!boletinIniciado) {
+      boletinIniciado = true;
+      iniciarBoletin().catch(err => {
+        const prog = document.getElementById('progress-card-b');
+        if (prog) prog.innerHTML = `<div class="progress-title-b" style="color:var(--danger)">⚠️ Error: ${err.message}</div>`;
+        boletinIniciado = false;
+      });
+    }
   }
 }
 const LOCALIDADES = [
@@ -1993,27 +2003,37 @@ async function iniciarBoletin() {
 
   if (btnToggle) { btnToggle.disabled = true; btnToggle.innerHTML = '⏳ CONSULTANDO...'; }
   prog.style.display = 'block';
+  prog.innerHTML = `<div class="progress-title-b">Consultando datos meteorológicos...</div>
+    <div class="progress-bar-bg-b"><div class="progress-bar-fill-b" id="progress-fill-b" style="width:0%"></div></div>
+    <div class="progress-text-b" id="progress-text-b">Iniciando...</div>`;
   document.getElementById('tabla-boletin-wrap').style.display = 'none';
   datosGlobales = [];
 
   for (let i = 0; i < LOCALIDADES.length; i++) {
     const [nombre, lat, lon] = LOCALIDADES[i];
     const pct = Math.round((i / LOCALIDADES.length) * 100);
-    fill.style.width = pct + '%';
-    txt.textContent = `${i+1}/${LOCALIDADES.length} — ${nombre}`;
+    const fillEl = document.getElementById('progress-fill-b');
+    const txtEl = document.getElementById('progress-text-b');
+    if (fillEl) fillEl.style.width = pct + '%';
+    if (txtEl) txtEl.textContent = `${i+1}/${LOCALIDADES.length} — ${nombre}`;
     try {
       const w = await fetchLocalidad(lat, lon);
       datosGlobales.push({ nombre, ...w, ok: true });
     } catch(e) {
       datosGlobales.push({ nombre, ok: false });
     }
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 150));
   }
 
-  fill.style.width = '100%';
-  txt.textContent = `✓ ${LOCALIDADES.length} localidades procesadas`;
+  const fillEl = document.getElementById('progress-fill-b');
+  const txtEl = document.getElementById('progress-text-b');
+  if (fillEl) fillEl.style.width = '100%';
+  if (txtEl) txtEl.textContent = `✓ ${datosGlobales.filter(d=>d.ok).length}/${LOCALIDADES.length} localidades procesadas`;
 
   renderTabla();
+  setTimeout(() => {
+    document.getElementById('tabla-boletin-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 200);
   if (btnToggle) { btnToggle.disabled = false; btnToggle.innerHTML = '🔄 ACTUALIZAR BOLETÍN'; }
 }
 
