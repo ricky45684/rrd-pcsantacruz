@@ -1986,13 +1986,12 @@ async function fetchLocalidad(lat, lon) {
 }
 
 async function iniciarBoletin() {
-  const btn = document.getElementById('btn-boletin-gen');
+  const btnToggle = document.querySelector('.btn-boletin');
   const prog = document.getElementById('progress-card-b');
   const fill = document.getElementById('progress-fill-b');
   const txt = document.getElementById('progress-text-b');
 
-  btn.disabled = true;
-  btn.textContent = '⏳ GENERANDO...';
+  if (btnToggle) { btnToggle.disabled = true; btnToggle.innerHTML = '⏳ CONSULTANDO...'; }
   prog.style.display = 'block';
   document.getElementById('tabla-boletin-wrap').style.display = 'none';
   datosGlobales = [];
@@ -2015,8 +2014,7 @@ async function iniciarBoletin() {
   txt.textContent = `✓ ${LOCALIDADES.length} localidades procesadas`;
 
   renderTabla();
-  btn.disabled = false;
-  btn.innerHTML = '🔄 ACTUALIZAR BOLETÍN';
+  if (btnToggle) { btnToggle.disabled = false; btnToggle.innerHTML = '🔄 ACTUALIZAR BOLETÍN'; }
 }
 
 let localidadSeleccionadaB = null;
@@ -2037,15 +2035,13 @@ function renderTabla() {
     const vc = vientoClase(d.rafagas);
     return `<tr data-idx="${idx}" onclick="abrirModalB(${idx})">
       <td>${d.nombre}</td>
-      <td class="t-max">${d.tmax}°</td>
-      <td class="t-min">${d.tmin}°</td>
+      <td class="tb-max">${d.tmax}°</td>
+      <td class="tb-min">${d.tmin}°</td>
       <td>${d.stmax}°</td>
-      <td>${d.stmin}°</td>
       <td class="${vc}">${d.viento}</td>
       <td class="${vc}">${d.rafagas}</td>
       <td style="font-weight:600;color:var(--accent2)">${gradosAFlecha(d.dirGrados)} ${d.dirCardinal}</td>
-      <td style="font-size:0.6rem">${d.precip}</td>
-      <td style="font-size:0.6rem">${d.condicion}</td>
+      <td style="font-size:0.55rem">${d.precip}</td>
     </tr>`;
   }).join('');
 }
