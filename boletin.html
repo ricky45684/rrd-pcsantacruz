@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0e14">
+<title>Boletín Meteorológico — PC Santa Cruz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+:root {
+  --bg: #0a0e14;
+  --surface: #111820;
+  --border: #1e2d3d;
+  --accent: #f97316;
+  --accent2: #22d3ee;
+  --accent3: #4ade80;
+  --danger: #ef4444;
+  --warn: #fbbf24;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --card: #151e2a;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px;
+}
+.header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.header h1 {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 2rem;
+  letter-spacing: 3px;
+  color: var(--accent);
+}
+.header p {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.container {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.btn-generar {
+  width: 100%;
+  padding: 18px;
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.5rem;
+  letter-spacing: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all 0.2s;
+}
+.btn-generar:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-generar:active { transform: scale(0.98); }
+.btn-generar:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.progress-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: none;
+}
+.progress-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent2);
+  border-radius: 4px;
+  transition: width 0.3s;
+  width: 0%;
+}
+.progress-text {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.tabla-preview {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: none;
+}
+.tabla-header {
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tabla-header-title {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1rem;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+.tabla-header-fecha {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+.tabla-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 700px; }
+thead tr { background: #1B3A6B; }
+thead th {
+  padding: 8px 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  white-space: nowrap;
+}
+thead th:first-child { text-align: left; padding-left: 12px; }
+tbody tr:nth-child(even) { background: rgba(30,45,61,0.4); }
+tbody tr:hover { background: rgba(249,115,22,0.12); cursor: pointer; }
+tbody tr.selected { background: rgba(249,115,22,0.2) !important; outline: 1px solid var(--accent); }
+.fila-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted);
+  text-align: right;
+  padding: 6px 16px 2px;
+}
+
+/* MODAL LOCALIDAD */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+}
+.modal-head {
+  background: #1B3A6B;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-nombre {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.4rem;
+  letter-spacing: 2px;
+  color: white;
+}
+.modal-close {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.modal-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.modal-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+.modal-val {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+.modal-val.rojo { color: #ef4444; }
+.modal-val.azul { color: #22d3ee; }
+.modal-val.gris { color: var(--text); }
+.modal-unit { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--muted); }
+.modal-item.wide { grid-column: 1 / -1; }
+.modal-condicion {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--accent2);
+  text-align: center;
+}
+.modal-actions { display: flex; gap: 10px; margin-top: 4px; }
+.btn-modal-pdf {
+  flex: 1;
+  padding: 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-modal-pdf:active { opacity: 0.85; }
+.btn-modal-cerrar {
+  padding: 12px 18px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+tbody td {
+  padding: 7px 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(30,45,61,0.5);
+}
+tbody td:first-child { text-align: left; padding-left: 12px; font-size: 0.7rem; }
+.t-max { color: #ef4444; font-weight: 600; }
+.t-min { color: #22d3ee; font-weight: 600; }
+.v-normal { color: #4ade80; }
+.v-moderado { color: #fbbf24; }
+.v-fuerte { color: #f97316; font-weight: 600; }
+.v-extremo { color: #ef4444; font-weight: 700; }
+.btn-pdf {
+  margin: 12px 16px;
+  padding: 10px 20px;
+  background: #1B3A6B;
+  border: 1px solid var(--accent2);
+  border-radius: 8px;
+  color: var(--accent2);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-pdf:hover { background: rgba(34,211,238,0.1); }
+
+.info-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.info-title {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 0.9rem;
+  letter-spacing: 2px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.leyenda-item {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Boletín Meteorológico</h1>
+  <p>Subsecretaría de Protección Civil · Provincia de Santa Cruz</p>
+</div>
+
+<div class="container">
+
+  <button class="btn-generar" id="btn-gen" onclick="iniciarBoletin()">
+    🌤️ GENERAR BOLETÍN DEL DÍA
+  </button>
+
+  <div class="progress-card" id="progress-card">
+    <div class="progress-title">Consultando datos meteorológicos...</div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-text" id="progress-text">Iniciando...</div>
+  </div>
+
+  <div class="tabla-preview" id="tabla-preview">
+    <div class="tabla-header">
+      <span class="tabla-header-title">Vista Previa</span>
+      <span class="tabla-header-fecha" id="fecha-header"></span>
+    </div>
+    <div class="fila-hint" id="fila-hint" style="display:none">👆 Tocá una localidad para ver detalle y PDF individual</div>
+    <div class="tabla-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Localidad</th>
+            <th>Máx °C</th>
+            <th>Mín °C</th>
+            <th>S.T. Máx</th>
+            <th>S.T. Mín</th>
+            <th>Viento</th>
+            <th>Ráfagas</th>
+            <th>Dir.</th>
+            <th>Precip.</th>
+            <th>Condición</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+      </table>
+    </div>
+    <button class="btn-pdf" onclick="generarPDF()">📄 Descargar PDF</button>
+  </div>
+
+  <div class="info-card">
+    <div class="info-title">Escala de Ráfagas</div>
+    <div class="leyenda">
+      <div class="leyenda-item"><div class="dot" style="background:#4ade80"></div><span class="v-normal">&lt; 60 km/h — Verde · Sin alerta</span></div>
+      <div class="leyenda-item"><div class="dot" style="background:#fbbf24"></div><span class="v-moderado">60–90 km/h — Amarillo · Alerta</span></div>
+      <div class="leyenda-item"><div class="dot" style="background:#f97316"></div><span class="v-fuerte">90–110 km/h — Naranja · Alerta</span></div>
+      <div class="leyenda-item"><div class="dot" style="background:#ef4444"></div><span class="v-extremo">&gt; 110 km/h — Rojo · Alerta extremo ⛔</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const LOCALIDADES = [
+  ["28 de Noviembre",        -51.58440, -72.21355],
+  ["Bajo Caracoles",         -47.44362, -70.92733],
+  ["Caleta Olivia",          -46.44256, -67.51715],
+  ["Cañadón Seco",           -46.53218, -67.55185],
+  ["Cmte. Luis Piedrabuena", -49.98325, -68.91607],
+  ["El Calafate",            -50.33797, -72.26480],
+  ["El Chaltén",             -49.33149, -72.88632],
+  ["El Turbio",              -51.68094, -72.09014],
+  ["Esperanza",              -51.03037, -70.77830],
+  ["Fitz Roy",               -47.02592, -67.24796],
+  ["Gdor. Gregores",         -48.75091, -70.24850],
+  ["Jaramillo",              -47.18486, -67.14258],
+  ["Julia Dufour",           -51.54567, -72.23116],
+  ["Koluel Kayke",           -46.71634, -68.22458],
+  ["Lago Posadas",           -47.56657, -71.74228],
+  ["Las Heras",              -46.53943, -68.92992],
+  ["Le Marchand",            -50.74379, -69.46616],
+  ["Los Antiguos",           -46.54874, -71.62868],
+  ["Perito Moreno",          -46.59125, -70.92605],
+  ["Pico Truncado",          -46.79652, -67.95612],
+  ["Puerto Deseado",         -47.75156, -65.90138],
+  ["Puerto San Julián",      -49.30689, -67.72982],
+  ["Puerto Santa Cruz",      -50.02473, -68.52438],
+  ["Río Gallegos",           -51.62305, -69.21683],
+  ["Río Turbio",             -51.53596, -72.33799],
+  ["Rospentek Aike",         -51.66329, -72.14683],
+  ["Tres Cerros",            -48.14346, -67.65238],
+  ["Tres Lagos",             -49.59792, -71.44641],
+  ["Tucu Tucu",              -48.44233, -71.84098],
+];
+
+const WMO = {
+  0:"Despejado",1:"May. despejado",2:"Parcial. nublado",3:"Nublado",
+  45:"Neblina",48:"Neblina c/escarcha",
+  51:"Llovizna leve",53:"Llovizna mod.",55:"Llovizna intensa",
+  61:"Lluvia leve",63:"Lluvia mod.",65:"Lluvia intensa",
+  71:"Nieve leve",73:"Nieve mod.",75:"Nieve intensa",
+  77:"Granizo fino",80:"Chaparrones leves",81:"Chaparrones mod.",
+  82:"Chaparrones fuertes",85:"Nieve en chubasco",86:"Nieve intensa",
+  95:"Tormenta",96:"Tormenta c/granizo",99:"Tormenta c/granizo int."
+};
+
+let datosGlobales = [];
+let fechaGeneracion = '';
+
+function vientoClase(r) {
+  // Escala calibrada para Santa Cruz según SMN
+  if (r > 110) return 'v-extremo';   // ROJO: supera 110 km/h
+  if (r >= 90)  return 'v-fuerte';   // NARANJA: 90-110 km/h
+  if (r >= 60)  return 'v-moderado'; // AMARILLO: 60-90 km/h
+  return 'v-normal';                 // VERDE: < 60 km/h
+}
+
+function gradosACardinal(grados) {
+  const dirs = ['N','NE','E','SE','S','SO','O','NO'];
+  return dirs[Math.round(grados / 45) % 8];
+}
+
+function gradosAFlecha(grados) {
+  // Flecha que apunta en la dirección del viento
+  const flechas = ['↑','↗','→','↘','↓','↙','←','↖'];
+  return flechas[Math.round(grados / 45) % 8];
+}
+
+async function fetchLocalidad(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,` +
+    `precipitation_probability_max,precipitation_sum,snowfall_sum,windspeed_10m_max,windgusts_10m_max,` +
+    `winddirection_10m_dominant,weathercode` +
+    `&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=1&wind_speed_unit=kmh`;
+  const r = await fetch(url);
+  const data = await r.json();
+  const d = data.daily;
+  const wcode = d.weathercode[0] ?? 0;
+  const precip = d.precipitation_sum[0] || 0;
+  const nieve = d.snowfall_sum[0] || 0;
+  const prob = d.precipitation_probability_max[0] || 0;
+  const dirGrados = d.winddirection_10m_dominant[0] ?? 0;
+  let precipStr;
+  if (nieve > 0) precipStr = `Nieve ${nieve.toFixed(1)}cm (${prob}%)`;
+  else if (precip > 0) precipStr = `Lluvia ${precip.toFixed(1)}mm (${prob}%)`;
+  else if (prob > 20) precipStr = `Sin precip. (${prob}%)`;
+  else precipStr = 'Sin precip.';
+  return {
+    tmax: Math.round(d.temperature_2m_max[0]),
+    tmin: Math.round(d.temperature_2m_min[0]),
+    stmax: Math.round(d.apparent_temperature_max[0]),
+    stmin: Math.round(d.apparent_temperature_min[0]),
+    viento: Math.round(d.windspeed_10m_max[0]),
+    rafagas: Math.round(d.windgusts_10m_max[0]),
+    dirGrados: Math.round(dirGrados),
+    dirCardinal: gradosACardinal(dirGrados),
+    precip: precipStr,
+    condicion: WMO[wcode] || `Cód.${wcode}`
+  };
+}
+
+async function iniciarBoletin() {
+  const btn = document.getElementById('btn-gen');
+  const prog = document.getElementById('progress-card');
+  const fill = document.getElementById('progress-fill');
+  const txt = document.getElementById('progress-text');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ GENERANDO...';
+  prog.style.display = 'block';
+  document.getElementById('tabla-preview').style.display = 'none';
+  datosGlobales = [];
+
+  for (let i = 0; i < LOCALIDADES.length; i++) {
+    const [nombre, lat, lon] = LOCALIDADES[i];
+    const pct = Math.round((i / LOCALIDADES.length) * 100);
+    fill.style.width = pct + '%';
+    txt.textContent = `${i+1}/${LOCALIDADES.length} — ${nombre}`;
+    try {
+      const w = await fetchLocalidad(lat, lon);
+      datosGlobales.push({ nombre, ...w, ok: true });
+    } catch(e) {
+      datosGlobales.push({ nombre, ok: false });
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  fill.style.width = '100%';
+  txt.textContent = `✓ ${LOCALIDADES.length} localidades procesadas`;
+
+  renderTabla();
+  btn.disabled = false;
+  btn.innerHTML = '🔄 ACTUALIZAR BOLETÍN';
+}
+
+let localidadSeleccionada = null;
+
+function renderTabla() {
+  const ahora = new Date();
+  fechaGeneracion = ahora.toLocaleString('es-AR', {
+    day:'2-digit', month:'long', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
+  document.getElementById('fecha-header').textContent = fechaGeneracion;
+  document.getElementById('tabla-preview').style.display = 'block';
+  document.getElementById('fila-hint').style.display = 'block';
+
+  const tbody = document.getElementById('tabla-body');
+  tbody.innerHTML = datosGlobales.map((d, idx) => {
+    if (!d.ok) return `<tr data-idx="${idx}"><td>${d.nombre}</td><td colspan="9" style="color:var(--muted)">Sin datos</td></tr>`;
+    const vc = vientoClase(d.rafagas);
+    return `<tr data-idx="${idx}" onclick="abrirModal(${idx})">
+      <td>${d.nombre}</td>
+      <td class="t-max">${d.tmax}°</td>
+      <td class="t-min">${d.tmin}°</td>
+      <td>${d.stmax}°</td>
+      <td>${d.stmin}°</td>
+      <td class="${vc}">${d.viento}</td>
+      <td class="${vc}">${d.rafagas}</td>
+      <td style="font-weight:600;color:var(--accent2)">${gradosAFlecha(d.dirGrados)} ${d.dirCardinal}</td>
+      <td style="font-size:0.6rem">${d.precip}</td>
+      <td style="font-size:0.6rem">${d.condicion}</td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirModal(idx) {
+  const d = datosGlobales[idx];
+  if (!d || !d.ok) return;
+  localidadSeleccionada = d;
+
+  // Highlight fila
+  document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
+  document.querySelector(`tr[data-idx="${idx}"]`)?.classList.add('selected');
+
+  document.getElementById('modal-nombre').textContent = d.nombre;
+  document.getElementById('modal-condicion').textContent = '🌤️ ' + d.condicion;
+  document.getElementById('m-tmax').textContent = d.tmax + '°';
+  document.getElementById('m-tmin').textContent = d.tmin + '°';
+  document.getElementById('m-stmax').textContent = d.stmax + '°';
+  document.getElementById('m-stmin').textContent = d.stmin + '°';
+  document.getElementById('m-precip').textContent = d.precip;
+  document.getElementById('m-dir').innerHTML = '<span style="font-size:1.4rem;margin-right:6px">' + gradosAFlecha(d.dirGrados) + '</span>' + d.dirCardinal + ' (' + d.dirGrados + '°)';
+
+  // Fecha y hora de consulta
+  const ahora = new Date();
+  const fechaStr = ahora.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const horaStr = ahora.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+  document.getElementById('modal-fecha-hora').textContent = `📅 Consultado: ${fechaStr} · ${horaStr} hs · Fuente: Open-Meteo`;
+
+  // Viento con color
+  const vc = d.rafagas > 110 ? '#ef4444' : d.rafagas >= 90 ? '#f97316' : d.rafagas >= 60 ? '#fbbf24' : '#4ade80';
+  document.getElementById('m-viento').textContent = d.viento;
+  document.getElementById('m-viento').style.color = vc;
+  document.getElementById('m-rafagas').textContent = d.rafagas;
+  document.getElementById('m-rafagas').style.color = vc;
+  document.getElementById('m-rafagas-alerta').textContent =
+    d.rafagas > 110 ? 'km/h · ⛔ ROJO — EXTREMO' :
+    d.rafagas >= 90  ? 'km/h · 🟠 NARANJA — ALERTA' :
+    d.rafagas >= 60  ? 'km/h · 🟡 AMARILLO — ALERTA' : 'km/h · 🟢 Sin alerta';
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function cerrarModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  localidadSeleccionada = null;
+  document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
+}
+
+async function capturarModal() {
+  const d = localidadSeleccionada;
+  if (!d) return;
+
+  const btn = document.getElementById('btn-captura');
+  btn.textContent = '⏳ Capturando...';
+  btn.disabled = true;
+
+  // Ocultar botones para captura limpia
+  const actions = document.querySelector('.modal-actions');
+  actions.style.display = 'none';
+
+  // Agregar footer institucional temporal
+  const footer = document.createElement('div');
+  footer.id = 'capture-footer';
+  footer.style.cssText = 'font-family:IBM Plex Mono,monospace;font-size:0.55rem;color:#64748b;text-align:center;padding:8px 0 4px;border-top:1px solid #1e2d3d;margin-top:4px';
+  footer.textContent = 'Dirección Provincial de Reducción de Riesgo de Desastres';
+  document.getElementById('modal-body-capture').appendChild(footer);
+
+  try {
+    const canvas = await html2canvas(document.querySelector('.modal'), {
+      backgroundColor: '#111820',
+      scale: 2,
+      useCORS: true,
+      logging: false
+    });
+
+    canvas.toBlob(async (blob) => {
+      const ahora = new Date();
+      const nombreArchivo = `Meteo_${d.nombre.replace(/\s+/g,'_')}_${ahora.toISOString().slice(0,10)}.png`;
+
+      // Intentar Web Share API nativa
+      if (navigator.share && navigator.canShare) {
+        const file = new File([blob], nombreArchivo, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `Clima ${d.nombre}`,
+              text: `Condiciones meteorológicas · ${d.nombre} · Protección Civil Santa Cruz`
+            });
+          } catch(e) {
+            if (e.name !== 'AbortError') descargarImagen(blob, nombreArchivo);
+          }
+        } else {
+          descargarImagen(blob, nombreArchivo);
+        }
+      } else {
+        descargarImagen(blob, nombreArchivo);
+      }
+
+      // Restaurar modal
+      actions.style.display = 'flex';
+      footer.remove();
+      btn.innerHTML = '📸 CAPTURAR Y COMPARTIR';
+      btn.disabled = false;
+    }, 'image/png');
+
+  } catch(e) {
+    actions.style.display = 'flex';
+    footer.remove();
+    btn.innerHTML = '📸 CAPTURAR Y COMPARTIR';
+    btn.disabled = false;
+    alert('Error al capturar: ' + e.message);
+  }
+}
+
+function descargarImagen(blob, nombre) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+
+
+function generarPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  const W = 297, H = 210, margin = 10;
+  let y = margin;
+
+  // Header
+  doc.setFillColor(10, 14, 20);
+  doc.rect(0, 0, W, 28, 'F');
+  doc.setTextColor(249, 115, 22);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PROTECCIÓN CIVIL SANTA CRUZ', margin, 10);
+  doc.setTextColor(34, 211, 238);
+  doc.setFontSize(9);
+  doc.text('REDUCCIÓN DE RIESGO DE DESASTRES · BOLETÍN METEOROLÓGICO DIARIO', margin, 17);
+  doc.setTextColor(150, 150, 150);
+  doc.setFontSize(7);
+  doc.text(`Generado: ${fechaGeneracion} · Fuente: Open-Meteo (openmeteo.com)`, margin, 23);
+
+  y = 32;
+
+  // Columnas
+  const cols = [40, 12, 12, 14, 14, 14, 16, 12, 30, 38];
+  const headers = ['Localidad','Máx °C','Mín °C','S.T.Máx','S.T.Mín','Viento','Ráfagas','Dir.','Precipitación','Condición'];
+
+  // Header tabla
+  doc.setFillColor(27, 58, 107);
+  let xh = margin;
+  cols.forEach((w, i) => { doc.rect(xh, y, w, 7, 'F'); xh += w; });
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'bold');
+  xh = margin;
+  headers.forEach((h, i) => {
+    doc.text(h, xh + cols[i]/2, y + 4.5, { align: 'center' });
+    xh += cols[i];
+  });
+  y += 7;
+
+  // Filas
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  const rowH = 6.5;
+
+  datosGlobales.forEach((d, idx) => {
+    if (y + rowH > H - 14) {
+      doc.addPage();
+      y = margin;
+    }
+    const fill = idx % 2 === 0 ? [255,255,255] : [244,246,248];
+    doc.setFillColor(...fill);
+    let xr = margin;
+    cols.forEach(w => { doc.rect(xr, y, w, rowH, 'F'); xr += w; });
+
+    // Borde línea
+    doc.setDrawColor(204, 204, 204);
+    doc.setLineWidth(0.1);
+    doc.line(margin, y + rowH, margin + cols.reduce((a,b)=>a+b,0), y + rowH);
+
+    if (!d.ok) {
+      doc.setTextColor(150,150,150);
+      doc.text(d.nombre, margin + 2, y + 4.2);
+      doc.text('Sin datos', margin + cols[0] + 20, y + 4.2, { align: 'center' });
+    } else {
+      const vc = d.rafagas > 110 ? [192,57,43] : d.rafagas >= 90 ? [230,126,34] : d.rafagas >= 60 ? [243,156,18] : [26,122,60];
+
+      doc.setTextColor(30,30,30);
+      doc.text(d.nombre, margin + 2, y + 4.2);
+
+      let xv = margin + cols[0];
+      // Máx
+      doc.setTextColor(192, 57, 43); doc.setFont('helvetica','bold');
+      doc.text(`${d.tmax}°`, xv + cols[1]/2, y + 4.2, {align:'center'}); xv += cols[1];
+      // Mín
+      doc.setTextColor(22, 140, 180);
+      doc.text(`${d.tmin}°`, xv + cols[2]/2, y + 4.2, {align:'center'}); xv += cols[2];
+      // ST
+      doc.setTextColor(80,80,80); doc.setFont('helvetica','normal');
+      doc.text(`${d.stmax}°`, xv + cols[3]/2, y + 4.2, {align:'center'}); xv += cols[3];
+      doc.text(`${d.stmin}°`, xv + cols[4]/2, y + 4.2, {align:'center'}); xv += cols[4];
+      // Viento
+      doc.setTextColor(...vc);
+      doc.text(`${d.viento}`, xv + cols[5]/2, y + 4.2, {align:'center'}); xv += cols[5];
+      doc.setFont('helvetica','bold');
+      doc.text(`${d.rafagas}`, xv + cols[6]/2, y + 4.2, {align:'center'}); xv += cols[6];
+      // Dirección
+      doc.setTextColor(34,211,238); doc.setFont('helvetica','bold');
+      doc.text(d.dirCardinal || '-', xv + cols[7]/2, y + 4.2, {align:'center'}); xv += cols[7];
+      // Precip y condicion
+      doc.setTextColor(30,30,30); doc.setFont('helvetica','normal'); doc.setFontSize(5.5);
+      doc.text(d.precip, xv + cols[8]/2, y + 4.2, {align:'center'}); xv += cols[8];
+      doc.text(d.condicion, xv + cols[9]/2, y + 4.2, {align:'center'});
+      doc.setFontSize(6.5);
+    }
+    y += rowH;
+  });
+
+  // Leyenda
+  y += 4;
+  doc.setFontSize(6); doc.setFont('helvetica','bold');
+  doc.setTextColor(27,58,107); doc.text('RÁFAGAS:', margin, y);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(26,122,60); doc.text('■ < 60 km/h Verde · Sin alerta', margin+18, y);
+  doc.setTextColor(243,156,18); doc.text('■ 60-90 km/h Amarillo · Alerta', margin+70, y);
+  doc.setTextColor(230,126,34); doc.text('■ 90-110 km/h Naranja · Alerta', margin+122, y);
+  doc.setTextColor(192,57,43); doc.text('■ > 110 km/h Rojo · Extremo ⛔', margin+174, y);
+
+  // Footer
+  doc.setFillColor(10,14,20);
+  doc.rect(0, H-8, W, 8, 'F');
+  doc.setTextColor(130,130,130); doc.setFontSize(6);
+  doc.text(`Protección Civil Santa Cruz · L10 · Gobernador Lista 327, Río Gallegos · ${fechaGeneracion}`, W/2, H-3, {align:'center'});
+
+  const nombre = `Boletin_Meteo_SantaCruz_${new Date().toISOString().slice(0,10)}.pdf`;
+  doc.save(nombre);
+}
+</script>
+<!-- MODAL LOCALIDAD -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-head" style="display:flex;align-items:center;gap:12px">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAlW0lEQVR4nO17d3Rdxb3uNzO7nX50irqsZrnKBTdsjCuEAKYTmUBIwiXJSyE3CTfhJnCT2CKB1EsIF8INj5pAIBIlOGCKwQU3XGRbtiVbzbJ6OTq9n733zPvjyJRgUnhJ3nrrvVlnLa2z1+jsmW++X/8N8P/4IP+nXiwAApFfAXnn0T9//MMBEEKQ5ub1tME/iwDbgcAOgfXg5E82LAQImkHhX0WwHQBWczQ2ij+d93/FEEIQIZqYaGpgZ59BgYNCxuZOFRse09AgPmQeIJoamGhqYOIfdFh/1x/dsGED3bhxNiFkvfnOMyGsN7U8ONebG59H4xPzLUaiiuaypTBzXlPPyoRzAYI0ZWzMpGw4YaAvkBZtg4bt4JrnbzyBVy/NnvktsWGVhI07TEL+fqz4uwAghCBoXk/J+mYTAO4Xwt7Q+tDHXdG+T6iJ8bXIxQoRD0MfHcfwaARj4ZSZzRoJzkWOC64pEpXdDkUrKZDg8VoBlxVgFuhCOR0F2zoUt7xw2e4L3xxs/mYayLMC65s/IEYfZfxvAyBEEztz4jv7jtYsiOz+gjXY9VnERkpi7Z040Ho6uL8rPvT2sBztzBYYI8RvT1mKqC67KFSbgGlYKDEIzcSYQw9lKliQznOErCvKUval1cw3Z4aLoMCNtGE5Naprv3n+VMGj37rnxYEzQJwB/Z8OgBCCYCMhpBF8W29v8eLUlm/ZxjpuwXCX9vaWg/E/vD3c+sJIYbTTvlSRymdXap7yEs3ttXk8bqqoFrjtCsbiJuwawWhMhyQzmFxgdDwseCiaQ3QkycLH9UXiiPqJkj7rDQuJUjrTC920h/pSyq9+tr34lw+99NKEEKAg+MjK8iMB0NTUxNavz5/6SOeLnysOHb0b/UcK33h+5/h9b0wcfgNLCJ1+QYWtqLZ2cX2tAtWGhRUwAC7NKZEmAjFd8cvJ+IER6pvi5KT5SEL+/PKC3LGuodFHDkuVaxeUoGtcR0+YIT4eBkZ7uCe8S/+0az+7dVFIqpzrQzTpGOiOqt9Z1NjyOwBoagBb34y/mQ1/MwBnKL9paMi3KvTKr5zh4w3HmzebP3+uc+tT2WW6ff7lc4uq5pTPmV6E6iIN1V4WnOGOpY93jVltMqT5s6qi3adHWCTNpYpCOydUjjftn5j6pdWe4a/f85oSLlzs//GFIl1dXRX+7cuHba7qWfLzRxLWjqiGdEcHiqPbxdcKXje/szIpkUIfTo6pT993sOaWB19+OfxRROJvAkBs2yCRNY3G/iNbzpknTjYpPXumPn7/i93f3ms/mV5489Spc86dsXRuFTLxAO9L2vCz9d7I3lNpx5JSY6y9a9RnV1lkeGAgaxDJbbfK6e7uoazkcls1xtLlTiI/ujfoLJq5RPn+atpaUTdT/OC+54r8TjlbU+W3PvXWmC/qnS+/1ZakmOjBymSzuLd+Dz9noYuNRp3t2/qd19/w4L6j2zasktY07jD+7gCIbdsksmaN0Xls00XVqaPPpfe8Yf+Pe7fvfDC7Ol2x/PqV8+bO1DomCP/EEhuZbR1J3vpi1vbol6YHBjraXAOn+xNbjodERnLpPQHTA7uP5UzTzEFRoTkgZcI5CwymMG4oTpeYx/r6pk3xWRU9zsuqytXBsYQkUYLaEmtmd8BdtHW8QOrvCMEfe4vc4/uNceOKnBRIF8R2D9ivvPrXrdv/FhD+KgDe2fyRFy6vTR1+dvDVl5Sv/PLQq29M+RfnrKWXn7d6UQXOqxHiqV1BsmXQjTtWZvVNbw8ilsxiZGAIWUeZTApKAdkKkktApCPguTS4oQshYBJJo9zioEJzQ1AFXNeBVBCO2GDu2kXOnFdKKzdee/7xvftOuNdfMj/65f/cWjtsne3cfUoHC/XgR8ovzdtWDLKQ6U9t7tKu+PQTJ94UDQ2MNP9lcfiLAJyR+ZPHX1w7Nd7ycv9LL6qfuad184FZX6s+d/Vls5bPKeQllgSFnkJ5iUc8v3c4ub1Lt/Js1MgWzlVELgljtNM0+loSfKRtAqGhFMuFLBSZpIyMIYGO5yBpoE6eclYYhm9mCUpnl5OS2W7uLKYiHEARCYnL6vS+731m8eGO0+Oe3t7BKp/fo9z3ZqBof3IKyYwHyN3KPfz2807SsbQ/ubnbu/Lmp1oO/TWK8c8CIMQGSkgj39PVMnVh+PV94Tde8Fx31/7XDs+9tebCiy6vu2CBN5vLRJUyv4tMBMJi1+5W/UDHWDRSc4nfNHSk27dEcfKN09Zgq+lFzltsgbXYI1l9TptW4SRsb/UXUTL0GhbKvQimwdOpVHIsokc7I8h18TL/WNFyqz5zHYV/KkFwHIVkNHXrWmffTVcuSbz4ym7sO3yy/LGOyhKlagb4+Cjus//E/PLibjYYLuj7zxbbsl+8enJ040aQxkbwD9uj9OGbFwTN68kvhVDnHfqvJnJ0u+cbv9i//dCMW8qKZ11ct7i+MN17cGs24apVszrH5j/uiOxNlrud05f7M+2vG3z/UwPeWFtkioLSqdVa0czyQtQV21DktqJIMRAtWoKHzS+gLSKJLxY+iLKyYprOZB1Z3XSEExkMjIXQcrpJbHv7DdLqvxzZ+msxbqm33r6pe+ZA4vD4x6baJx57E75PfXVe7ryiXO6WJ1X7N2NfYxVtdxuXzR2r/EydeIoQslY0CdqYP+iz+gkfyoAz1J849MBPveMHbvvxvz9x5PbY1Zkl6z63dN2yYr6zO0XnVGhY7A0Hv/vAm+pE6Sq7pkiI7Hh0oKCzOVGtmKX1VTbXuXVezC61o8ilCKtKoFCQAocD/ybdjnuP2QDDwM3938Y9SwfBbG7A1IXgHKZhkHQ2h5FADNs6UnhyrB5Haj8PUn6OkIwkmZ4+nlu0aDrWTSNjLo0MtgTUup/soF73aAu2zfyZWVUK6aU29dbLnxi6VzSBkfVnFwV61s03NTBC1puHDz+1xBvt+ub2x14ONfbODl5w2TVLV5zj51ctcuIn15VlekMwv/toCwkXLpAlI4noc9/ur+p8Jr20mE775IpS181rKsVF9R4xvVRDkYsSh10iHrvAnoIr8HivH6qRgKKpeMZ+E15pi0MWWUgURGYgikrgtMuYVunGzav9eHT5CXxu/IeQenYQQ1LFcb1GTmcF9TqVQEVVhd55cB/lffvIae0c8q3ea5iZTpoLSnI//NG6uho0gG/YcPa9nvUhGmYJCEFmxLvuTRw6QG/fHD1gWXrT4srqWiwtjOpbj47RlpZjZHjXs+lg6SqPqefUzB++c2B25DBbNd0x7TOrprB18wvF9GIL8ToZsVoJZEWCSg3k3NPw04nzEQmHQSUJNBtHqnABHgh/DP39w3lOEpH/QzgoE2CKhLqaQvzkwhTupvfCdmoXYZ4C8vu9GenRw2T2N+9uWtB8TPHc/vmVqTU1MeO5+Bry7Ol6lPpStpVlsZ8TArGx/exs/wAAeeo38t59/3Wllulf9ttn327fX7Led86iRc7FdYo5lhBqpYvpL2xtT7fQeXbEB6C/+oNjM7M9Favq3WXXLy8T59a6UFTAiM1GocgEjAoIAkiKhmdxFTb3CGjMhMkJOAhkkcKewhvwTI8L2UQEXHAImADhAOGg1ICAAcVmx7+el8M99v+GNnwEtMiDp3ZF1WGlxvarby2L9R3clZltDRKbk4o7x65h0aBizvZnr/7vqyqX0WaYTQ34QN7hgwzY2CYgBClNnL4jsPeQ+MVx72DxnDXzPrmy1BxsOyR0yY4tOw5ha5/M3MUVyGy9f3RaotO3fKar+NpzS8WsUgspsDOoKgWl+dPkIJBIFuPORbjr9DSY6ShA8mvhAoCeAXeV4FF8Ckd7JmByHUKYEMIE5xx5/ZX/nmVW3Dw/irvUR0GjAUBVEVEr8ObOVjbrnDnK1z+9bOA873C2PTMVvxtZJFyuHOr96TsEgIamDyrC9wEgmpoYaWzkPW//crmSDSx+/vW27p6yy8oWLqiXpFBHSrcWk1KrkX3+SBK2ORc64nt/my4b2Zk5p8pScuWiYlFXpBGHlUCWRT7hJwwIcBBBwCwe3Je8DO1DKWgSgckFhMivhxMG2UzgdPEleGykHrGJIExOIAQAwYHJeSAcEDqS1IIvzzqFz2MTBFVxeihO3o6WqdeunDqeTPPoF9YW9Vd4cvxX46tYMqGIOnfm4jsvrZtJyAd1wZ8woBkAUJzov1nv6cbDbdYJ/6zz6+qLDHPHyQmH2yazZ17czYPO6Sw3eFTY256LTvPQKR8/p1jMKLYSmwWQJDJ5WgbAObggUEgOh7UL8WCXFxJPgU++VggBIQgACm6aIKqE5+w3YWe3CSObgeD5jYvJgyNCgIBDcBOGrOGOyrcw2+gCcVhF57Ap3fPHbstIfz8OnQy4q10RejxVRd6cmGkWek1pqS92PQBsxIcAIAQIWd9s/ubIazZrMnDZvn3d8aPWZda586YpbjLBqwqdIh0OpPcMM2rxFdPc4eZoJQ+qK2Z66MJKB3FYAVk+Q9fJhQoCxk2Ytir8YHwNQqEIJImCCwEhMLl5ngeCUFA9gZh/MR5OXIjRkRBMzvNzuYDgHBD8HVZkDIIKexy3ul8H4YwAAttPofilvb3Tbf4y200XVE9QSTebgosIIODVMtcCTQwbYeI95v9dNJobKAAsGXx1BcyI/822UJ9Zuay42o1cNhJNhlMmWtr6EHXNkMyRDrgGdhvTiyX38roCeO0UsnzmhzjA87TlIJAliufJNdjUK0GRTJiC5iE6Q2tQEJJngQAFo1ns8H0aL/a6kUkkIThAJsXFBJlkjQBBDjHOcKXrCBbJAxBWm2jpSMLiq8xcu3zKabsx3leohIyd8ToaSrpFmd2Y8e01t9YTAtHQ8O6+3wXAP04AoFjE1mJsXLw56tVtpbW+KS4Tpm7YCmwKOZ72WajTz8zuHdliM2RZVOsilX4VmiJAiQDAQYQxKQIECnSEnQvww8G5QDYKKsuglIAxCkrew0QKUEYApoBwE9wzBU9J16GzL4OcbuQ3LADC84oQ4CAAcpzCq0Rwva0FhFkIAUhn0qZ0nR7K9I4mqtbWO+L9YZW0JqeYRQWcznZnVwHAV2adjQHbd3AAsOXSS0b6AuQkrdEKCouYIEL4fQ65VE3FYoacEHoG6uAhXumCNqfCDpcFkCQBAhNkcnHgAhAUVLXhrsiVODokIBQLMrAgCwuyOQk6KAglIIzCJDIMZgOz2kBsTnBuoM19FZ4en4pEOAFd5JnFCcAJzRcVhACEiQwoLrC2oljRISQqjg2kLVZPkVRbXjgx020kqEzFvtgUQAU8qr4MAFbPftcaSO/IPwH/7GMbNJJpmdkzEElOWJdhqdeKOb5svLSgbOShJ17W4jinSIkMCVu8n9VNVVi5R4UiA4RMepk8L/8cDKrIodtzBRbPX42mtRmAUJimKQwuSPtoCk9sG8JwMAeiSFhcU4AvX1CEGT4mFHARTOXo861pPP3ETVjb/z2scOQARQKdFJT8R0AQExkuo4oNYJ4lgJGYA6EUyI7W/vLejm7msFvdmmLiaLyEQDC4FWM6QIEGzt8HwMaNGwjQKK7Re0oYUv7+YHYY9gpXuVcWFprUfvPqUduOMTtUv58Y3buEm0dpbaEDBVYCxs4oJkyKAAEjAilLFR7Sr8SP5lrBoE1OUAhgAtDxxcVWnH/nMdiLC/DS16pR6KAAJAIoBNkYLppbgEK+Dg/84hXMKd4Nb5EdjAJcCJBJ/UGFgE4EHCSBBcoQXlUWkEQshO5x3fm5hjXJMq+t7dmDLxefSrk9gqtwapmSoqIbbIQ8mZxUhIICwOzZ7QQAPKlEGahB+mNICafPMhGMizcO9ukOuz1nWj0Wg8ggsVHulQ1R6lGhyZMnwvN0FILDEBSSTPE7XIUXBqwwMlkYuolsWsfh3W8NBvr7k9mkicpSF76yUMGn5ksodMgil2E40dIa2/Tkb1p0ncBIGOIbq53ocCzDS6dd0JNpmJxDQIC/R4kKARCYmCqNg8oyTJ1DqC7UFtvbB/tOjTtszD6Rs4oUt8HCeMEl0w57AGDDhrweoADQMEkHG8l5wTMYS8kSVItKZUZfHnAWbBtidk2RuKmbYJkIc2iQPTYGieUrnERwEM4BQaDAQMC6CD/smw+Si4FJDIwIqDLh6z/3/dAPH37VVG1WcBOY4UpgthoEwISiqWhtPdZ9w3ceYqBEmLoBj0PL+ix6/0PhFegdNUU2Z06Czd8DAAcHh09KQJMkAW7CXuBN//a5ndquYxNzZ1U6jGjKJGmhQJZMtVyKOfGe8T6nwGejBIaOtMkooEpVDkPcua4gdetqL6dGxuAgIEYWNhmwKBSU5hdzxvYLQcCsLvw0fjX6RlOwypNmCwBMncq+mrlhW60T0EGpBGbG04qZNABCAY50xvAVVMyol612orpdBC635DFGIl10IZ4LTEU8lkXO4OAQ4AQw8zVmmABsNAdFIgSUoH8wpBQVOr3hUNjb1XaSEUZJ1mRClSS43E4rAGx8rw44M5ieJWAcBogdJpjfa8+mAh0ZzeogFk1VoZughEBlgEzzSo9zDkIAEzIs1MDb0sX41cliEDEBU9jzykrkFZdqc/LSIjcBTHBOiKrKYdWmyQD8gEA6nXalUzmxc8sbMaTCGQiTB4YHvMQ+C8+wBpw3/CMs1DgsJA++mFSGEAREZqAEgGmKNCfakkX1hsflGDkyLnkDfbogTJo0p+b7skPvA2AolCKlfg6VCQ6J8q2t4/KuiVFR4onmYlGTEDvRDNmSlzthguSlEUIQSDCRs9bgP8YuQCoSAijLR3Qir6w4p3jh17eKAqedZCNpqG4PDre20/lLz2VnhFlhBMHxJFn5zVckDLcqMHUBzeFkBQZGbOeQp0LLUBPaC+ZXoSp511gIAUKALLHBzCNCij2W5I5dB9OpDFdGJhK6xlRZppzEslwEx9LJDzCgOR8CIGWIADhQbOU6Mik9JhdY11+0wragRI51Pr5XFiaHafEhbRLo5qRTIkje7CkMD+nXYmsfgyLpyJnKpKsrAJ6X2aqqSgaYQDqFPa++nPnZvY95nnxmmQIzLwVCAGASnEsutRrGhVZkksglkuCZOCjV8Zr9eqwZbsXFjiwIpZBp3jASEIzTImQNEyCAVRIkGQ77bE6H6fc6iD4Ug0PSMZbj6V1hSxQA0PgeANpmNQsAGE9gHF7ByxyGDeGYcEqc+9MjcTVpjc8u97Cjp3WrcJWKmKmRTDYHLjSYoFBhYEBdijt754HkJiAkhnw8kHdjIQBwLp5+6Ncn2o61sbbOfrp522FvTi0vUJw+wNABRYMuKPylHuz94SLANAQTOr/6tqdTRwyfQwZH2lGLJ5NXoH7sGVRVUDCZA4SAEwtOoRKZTAZMpdh0cMKa7I8rFi3LErFcblWFCY3lkMiR2M7oyihwEo2ThpsCwMbG/JcnOzBsmIhUe4SVGCG9P2TQ8UjWSWQ5W+3Qh0gmAV5QgSD1IZbQwSdlm2ku/CB2NYbGk2A0b6bOtL9A5E0Vk6h570PPTtz14K7KP5yQao0Zl3nI7MuJKVsnFSlAqQTZbkdtoRW1LkqqCmRTOb0tgsggoNoEEykc9FyJlwIVSMcN6CaFBCAlleAYpgCZBExOsLw0i4e+fRHfsL4uBK1QnVqQ4UAasRTtx8jDKSHeTZJS5NcphADZtGlPPGZIffXFTLZlBnnMVLB4wYwRp82aqytzRC0kZXBrIQL2aRgOppAzKKzIYSv9OB7vLwUTSXCwd+N38c57ANMkms0+Xaq/QFPnr6O0YoEQBRXgVAGfjPklRaVUVmGaApmMASPLkTNMgcQEhJ4FFRxQXWhWb8CJEYFMjkAyTfRb5+Nk1gWkE/A6ZfTFLeLOxw9Kz27e5xTZBOZ4QgJmBjGdtAMc2ze+mxl61wxuXMUAIJoVb/tLLGIO7VXS4RQe3dIz5fTgmL9+amGh2wwZlEokVLoMbQEJejqLlFaJO8Yvgh4LA5S8kweAEOCCwzRNGIYpTFOIXE5nBifgzAKq2QmoisO9UVCLhnQ0gcsuWW178WefprlEjGt2GwKjo9merlOMKBJ4LgOTC0hmDIPuZXgmtgiRcAaEK9itrMVAMAZkOa5e5NavnjKU+OzHauiEZ74sVBsWe0dgxHQMZ7T9AJDvQfoTAM48Ox2lb8Kmko97B4mYGDZzjiLSOZLWDp4c0VbU0JwZmRDZisVoydUgF43iIXEj9o3aIckCgiqgTAFhCkAkMEah2S1QnDbCbKrEKJVACCCr4JINzG7FL14ewO7dJ2FxyCiunkIXzJ1GLXY7TcfCmdvuuHM0nkIhszoAEAJKwQkDlSlecX0WLaMq+nklXtbPQTw4CGZRMLfSLrJCFkPd3Wk61Jmc7kyi3hVg3WOCH436tgPA9tV4fywAAKs37jDRCLze4dl+vi8WvbJqwtZ4/IRxPFCrXjDTpr6561gqyyxmocUgAeoVx30XkacHt4h7SYWJiU7BJZLXCRAgIICAGOoJS1+45aWgzQgNSxLN9vSPulBQ6zDjAcGJJBHK9ECc0jW3H6HX1YTiK+ZNiamalU9MBGO//f2mSGtb70xStVw2clkgFQT0FEAYCDGRYh7zqYkF4mTiPOlwyACJpzFjqgvZQL8xb3p18tDJPk/HUNpy25ox044A6w/jyCP7OjuEIISQswBACES+gPBm8OuLarfMr5M+sbD1EI4FL0VLb4iywpqyK5dWxo2dg7HNp5POaO0l4g8n2vG12HXGk8dYjps8nwQVZ1LahJggeCWT8hKYBSaQtUCRp42fNKQuIkDAKEQGlCiCSMpbO+O2HdAVDhhZwKtAketUTSejbwo6vpUQkg+xBQiynMEwc5k+IBk87zZPcOi0JKiMFdM1tHedsg45ndruwx1Zai3G1dX9wpwIoyeuPgsQvn0jJADGBwB47zgRwMPF1ZZPfKXiGL25vwN91bOsX5g2Nj7dh1Dh2sLglgdHlgpnGW0pbiA3ZA9qD14c1dqCChR6JtE5Ga1BQGIEQig0nOHSUERHTs/BawcKLIDK4KAEYASQJMoMIbNgEhiOCgQSBnQjpjgtgM8OOFVAoQAXBAIM8SS37V7wY+sx4iR6ZAALphfgknpHLFu3xDja1W/vHrXQtTUZsaigjx07nku/NlrzOyCG7X9SJ3wfAGR9PtokxL11bKN+8pNzJ6b/fNsuc3drJb2kxstKY6lU56lR7farK6N3Pj/hZqUzcOepr5Nm+nNx3QJGglkGChMC+QwOiAlMusKprMBEnCGWBSgFPBYGpwYoEvIuLDhMLhBNAmNJgWCSIKVTSBSwKgQFGoFVEVBlFS7O8dqU72MAF5Lg0SNQHHZ8cbUrvHXLLkV2FlqS0XAiayjuL80b4HL4NGsPqi+82Np5WjSAkT+pFv9pXUDkTUSL3pVQ7rIU28kdxduAdIA8ciDrPdzRV9U9HJtujXQEF9XI1AwHSahyJb4R/AKZiAhMcXM4LBRuq4DLJuC2EritBAU2imK3hCo/Ra2PoMJJ4LJw2FQBhwY4rQJOK0GBnaDYA9R4CWYWEsz0E1QXUBQ7AKfG4LJYUKEInJh6G35vuQI9bUcBIePCGRa0dwxax1OMO6xIPvjciGtlVQyXlbeTEyei5r5E+Y8EBFl/FrZ/oDCyphGm2AB6/s9dvx8YZe2fWhBiH8s9b/aOy2iN+VwaMWDzV/juurakvdqnciSi4ljZ5bhp7CsYCVlQZBWQZQWqzKBIDDJjkBmBolC4bBQeG4HbRmDVKBhDvvTFKGRJgixJsKkUbjuB1wH4HAReO+C2aHBpCryMYW/pbbhHWo/Dhw8BaYGPL/Jh1VQNwZSk1s+ZZnuguYU5C93ke6sDXB1qowfGtN/ct6PjOBpAm8/SK3C22qBAOwjQoh8Y075hqE7cN3OHKAgeEE93OJi/pk4a6O5K957qda6fHoqXee0EqZjY57kI14x+GwcCVShgJhiTwAkFIQAh+RdJEoOmMWgqgSbn6U8m2z7FZPafEUCVAZvKYNMUOCw2FGmATfHhj+V34y5xLQ62HIRIm1i3qkS/fp6Rm1WEyMVLK5Ovv7HLGI94HF9dHsN5loNk99F0tGlo6veEEGRj89nL42ctjpJmmKIJ7NpHerccHWQPz5jBpXsKf2uKWAQ/eC2pTqmu8gyMRpRPXbpgYMPH0FPiVAgSEbRaZ2Fd6Lv49cg6KFxDgczBqAxO5HywAwKJEigygcwIaF748/picn0mGEBUyLIFPoWhTKEIei7GfZUP4afhhWhvbREiLlBb6cKnF9pIZCKCo/1p9+YXX2Q72gxpTb2MOxYcMULHu+mOcde3X25tHWpeD9qIszdJfHh/wGSyZ1FtjaP5E+mD1b7Y1H/fe775M+k2askNGJu+NauvzCF1JpJJDERp3W3Px2r7E5waHAC14nJLB77hfg0rtEOQSQS6IEgLAYMTmESAcwFuCnAIEEFBKQUDIBEOqxAgxIFRyznYYlmPx1MLsb+7D7nACCAUfO6SYp5Opsn8Ym763C7p5PHWxE+bR201ZU7ycsMBY8b4FumJt8mLN72SumrbKiGt2YEPbZj6sy0yZ3ps/mfDjIVXzgjv9itJ+aaDl5InlK+QEmkQX5gdOjV3avHwqcG4Vl1bVnzzY8NFCckrUaITU3LCpkhYo/XhE/YjWK4eRxnpgwVxQKQhYIBzgnx6goIQFYLaEGUl6FaWYLe8Eq9kp+LgQBSxkV5QCNisGr5/XXXk1T+8Kl+0fKblVJDDmhkO/6Kp1+0vKWZPX9VhXiA2s8174t23daw+t63h9cjGRuDDTv8vAgAA2zZAWtMI46nryz95xazM0xYza372yDX0KfEpUqyO4vLKUN+CObVlDzy5NX08VWFhVXMknkkBRg4iywGbHVCtqNA45lhCmKOMoVaegI/GoRITnDAkiBNjpAh9ohjtOT/aUwqGJoLg4VEBYhBQGUibwuF1kI0XIDwwGrNOcJtcZA5F//OZU3ZfaYX86LoT5uXa6+ytPYHw/V1V5z97pLv9+xtA/1x/0F8FAACIDZBII4znrvd/5dLZ5gMK181/PX4F+VX8OlpYruJyW2vwkVdGtX/51s22C3yhzI2/7FGLaorIrHLN3HY0xJDRAZUBQhGQVQJZEoqsEEJIPi7lXGR1nSCXEsjECbJpQFWgWS3IZnV43Brqq33YcWQEiIbwixv8udd2tRmv7o7K5ZWF8iOXHDMvUrayXbsDqcd7i9c90jK0/a9tnf3rGyXPgPBJ/y0XzRT32+UMft65xvzOxGepmckRScmhvMwvPD3PRw4Fq1wXXrsW1/q7Ag+3mK6pU6u1zftHBFUsJJHWYQoAmVy+DAADyBBAIqAKg0WVMKWAoayAmJ9c4o586f7jzoXnzZPv/Vg2tuI7u1VMmafSSJ+Z6x0gy+d66IMXHjTmpHdJO/bFwo+dKr3miZa+7RtWQWr8M3L/kQB4LwhPN5Ret2pq9pESb9a2o3+G8a3hG9nBXB0B04FsHBoz8d0b6rFn+x7zvMUzYq7caGyI+yrLnTzePZZjaaHocZ24dp6ImSNxxv79qopoR/+E7bLFFSN7j/YXLy7l5Ddv9Io5la7QY1sHXWn/bI32bEsJWVWFfx5TUjHcMr9fbFxw0HQO7JdeO6x3PtBV2vDH471H/5bNAx/WI/RhaDXC2LYB0vXNw79/9KD9/JN96tFVFe3S9vqf4ru+ZtNjRADJJXIWL3q7e3MI949ePN8fPD0Szy6u847NL7f0jvQPJoIn94f/xzLbRKExnPb6nCjXewNdB/bydQuL4lpyJKBpqlFX5hJ1taXSRfW2GEnHwStXWoVtGjtf7cGmy/cY98zbRPiRndIze/mmr+5dfP5H2TzwEdvlzyhGYKnljZt6frygKPWvBX5OukK1/N7BNeKZ0EIWiikACaPUEkx6WVa6du3M/sDAaTpiOHyKmdbv/uY1E1/90R8rtgYrbI99piD5xBtdtGF52fj2XUdtzFPpHjp5ePxQwO2KhEMGd0x1LfWHxM1z+viNle1MG2/H20eToX0Bz4ZvbA3eD3A0NICdzdP7hwAAAGIDKG3Ml0N/eemU81aWx++eW5ReRZ0STsWqRPPEYvOFwCx6MFZEzRwBjBSgh6E5VN1qhg2fljMTGV0b1s6RFpZl0wPHDqWDrMhtxqMCcjmDHoO3QMOqshCur+0xLis7JWnJ02g/FjX3D1uaHuko+e6u/q5TYgMoGv/JFybe+/+iCTTfhEjx8BXFV8z3J/5tmje7yuEjANxoiVTyXdEa3hIvw8mEnw4kLTRqKkjryNcCFAW5nAEHScJr4aLanhTzCgJiWdG4WOrpl6Yow0B4Ase6c+mTAeWFlwd89zxxbKAFEB/5ksTfEwAAeTZgI0TerSf4wYXl5y8vSt5Q5sxcUuEyqixuCsgqYFoxYboxYdiR4CrP6DIIBGyKSexylvi0DNwsDhhRIJ7CqSED/SHa2hVSXnhuqOyZ1zo6OwAB0QC2sRnizzk4/1QAzoymBrCGJvB3r7VdZv3BmsNL5xSmlzlYboVH1WscqiiyKdxpVQGZEQgukNIFEmlixrIiGsuwwUBSOj6UUPa0Bv27H27tbH0nWmgA2zgL4i85N3/L+IdcRmxqAGtoAN7fn0sAcDa35jzvGtew1yYbrgKvas0ldT2SNJIjEWvsyR5/CDgQAs4UXPPJkjdXQtq+A/zvceL/7EGaGsC2bYAkNoCSvwJuSvInvW0VpMmevn/o9d5/9uVpIgBs3AAy+z29u22zINAIbMRH1+b/f3zE8b8AyRdpKbj3zDsAAAAASUVORK5CYII=" style="width:42px;height:42px;object-fit:contain;flex-shrink:0" alt="PC SC">
+      <div style="flex:1">
+        <div style="font-family:'Bebas Neue',cursive;font-size:1.3rem;letter-spacing:2px;color:white" id="modal-nombre">—</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.5rem;color:rgba(255,255,255,0.5);letter-spacing:0.5px">SUBSECRETARÍA DE PROTECCIÓN CIVIL Y ABORDAJE INTEGRAL DE EMERGENCIAS Y CATÁSTROFES · PROVINCIA DE SANTA CRUZ</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.55rem;color:#f97316;letter-spacing:1px;margin-top:2px">☎ Tel: 103</div>
+      </div>
+      <button class="modal-close" onclick="cerrarModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body-capture">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--muted);text-align:right;margin-bottom:-4px" id="modal-fecha-hora">—</div>
+      <div class="modal-condicion" id="modal-condicion">—</div>
+      <div class="modal-grid">
+        <div class="modal-item">
+          <div class="modal-label">Temp. Máxima</div>
+          <div class="modal-val rojo" id="m-tmax">—</div>
+          <div class="modal-unit">°C</div>
+        </div>
+        <div class="modal-item">
+          <div class="modal-label">Temp. Mínima</div>
+          <div class="modal-val azul" id="m-tmin">—</div>
+          <div class="modal-unit">°C</div>
+        </div>
+        <div class="modal-item">
+          <div class="modal-label">S. Térmica Máx</div>
+          <div class="modal-val gris" id="m-stmax">—</div>
+          <div class="modal-unit">°C</div>
+        </div>
+        <div class="modal-item">
+          <div class="modal-label">S. Térmica Mín</div>
+          <div class="modal-val gris" id="m-stmin">—</div>
+          <div class="modal-unit">°C</div>
+        </div>
+        <div class="modal-item">
+          <div class="modal-label">Viento Máx</div>
+          <div class="modal-val" id="m-viento" style="color:var(--accent3)">—</div>
+          <div class="modal-unit">km/h</div>
+        </div>
+        <div class="modal-item">
+          <div class="modal-label">⚡ Ráfagas</div>
+          <div class="modal-val" id="m-rafagas" style="color:var(--accent3)">—</div>
+          <div class="modal-unit" id="m-rafagas-alerta">km/h</div>
+        </div>
+        <div class="modal-item wide">
+          <div class="modal-label">Dirección Predominante del Viento</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:1rem;color:var(--accent2);margin-top:4px;font-weight:600" id="m-dir">—</div>
+        </div>
+        <div class="modal-item wide">
+          <div class="modal-label">Precipitación</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:0.9rem;color:var(--accent2);margin-top:4px" id="m-precip">—</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-modal-cerrar" onclick="cerrarModal()">Cerrar</button>
+        <button class="btn-modal-pdf" id="btn-captura" onclick="capturarModal()">📸 CAPTURAR Y COMPARTIR</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
