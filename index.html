@@ -1184,8 +1184,7 @@ body {
       </div>
       <div class="map-actions-row">
         <button class="map-btn secondary" onclick="document.getElementById('kml-input').click()">📂 KML</button>
-        <button class="map-btn tracking" id="btn-track" onclick="toggleTracking()">⏺ Grabar ruta</button>
-        <button class="map-btn" id="btn-enviar-mapa" onclick="enviarMapa()" style="display:none">📤 Enviar</button>
+        <button class="map-btn primary" onclick="enviarMapa()">📤 Enviar mapa</button>
       </div>
       <input type="file" id="kml-input" accept=".kml" onchange="cargarKML(event)">
     </div>
@@ -1677,6 +1676,10 @@ function initMap() {
   }
 
   setTimeout(() => map.invalidateSize(), 100);
+
+  // Tracking automático desde que se abre el mapa
+  agregarPuntoTracking();
+  trackInterval = setInterval(agregarPuntoTracking, TRACK_INTERVAL_MS);
 }
 
 // ═══════════════════════════════════
@@ -1739,7 +1742,7 @@ function agregarPuntoTracking() {
 
 function enviarMapa() {
   if (trackPuntos.length === 0) {
-    alert('No hay puntos grabados. Usá "Grabar ruta" primero.');
+    alert('Aún no hay puntos registrados. Abrí el mapa y esperá un momento con GPS activo.');
     return;
   }
 
