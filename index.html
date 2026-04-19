@@ -1209,9 +1209,9 @@ body {
         <button class="map-btn" id="btn-relieve" onclick="setLayer('relieve')">⛰️ Relieve</button>
       </div>
       <div class="map-actions-row">
-        <button class="map-btn secondary" onclick="document.getElementById('kml-input').click()">📂 Cargar KML</button>
+        <button class="map-btn secondary" onclick="document.getElementById('kml-input').click()">📂 KML</button>
         <button class="map-btn tracking" id="btn-track" onclick="toggleTracking()">⏺ Grabar ruta</button>
-        <button class="map-btn" id="btn-enviar-mapa" onclick="enviarMapa()" style="display:none">📤 Enviar mapa</button>
+        <button class="map-btn" id="btn-enviar-mapa" onclick="enviarMapa()" style="display:none">📤 Enviar</button>
       </div>
       <input type="file" id="kml-input" accept=".kml" onchange="cargarKML(event)">
     </div>
@@ -1738,6 +1738,8 @@ function toggleTracking() {
 
     if (trackPuntos.length > 0) {
       btnEnviar.style.display = 'flex';
+      btnEnviar.style.flex = '1';
+    }
     }
   }
 }
