@@ -1764,53 +1764,49 @@ function agregarPuntoTracking() {
 }
 
 function enviarMapa() {
-  if (trackPuntos.length === 0) return;
+  if (trackPuntos.length === 0) {
+    alert('No hay puntos grabados. Usá "Grabar ruta" primero.');
+    return;
+  }
 
   const fecha = new Date().toISOString().slice(0,10);
-  const nombre = `Ruta_PC_${fecha}`;
+  const nombre = 'Ruta_PC_' + fecha;
 
-  // Generar KML
-  const coords = trackPuntos.map(p => `${p.lon},${p.lat},0`).join('\n                ');
-  const kml = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>${nombre}</name>
-    <Style id="ruta">
-      <LineStyle><color>ff0000ef</color><width>3</width></LineStyle>
-    </Style>
-    <Placemark>
-      <name>Ruta operativa</name>
-      <styleUrl>#ruta</styleUrl>
-      <LineString>
-        <coordinates>
-                ${coords}
-        </coordinates>
-      </LineString>
-    </Placemark>
-    ${trackPuntos.map((p, i) => `
-    <Placemark>
-      <name>Punto ${i+1} · ${new Date(p.t).toLocaleTimeString('es-AR')}</name>
-      <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
-    </Placemark>`).join('')}
-  </Document>
-</kml>`;
+  const coords = trackPuntos.map(p => p.lon + ',' + p.lat + ',0').join(' ');
+  const placemarks = trackPuntos.map((p, i) =>
+    '<Placemark><name>Punto ' + (i+1) + ' - ' + new Date(p.t).toLocaleTimeString('es-AR') + '</name>' +
+    '<Point><coordinates>' + p.lon + ',' + p.lat + ',0</coordinates></Point></Placemark>'
+  ).join('');
+
+  const kml = '<?xml version="1.0" encoding="UTF-8"?>' +
+    '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>' +
+    '<name>' + nombre + '</name>' +
+    '<Style id="ruta"><LineStyle><color>ff0000ef</color><width>3</width></LineStyle></Style>' +
+    '<Placemark><name>Ruta operativa - ' + trackPuntos.length + ' puntos</name>' +
+    '<styleUrl>#ruta</styleUrl>' +
+    '<LineString><coordinates>' + coords + '</coordinates></LineString></Placemark>' +
+    placemarks +
+    '</Document></kml>';
 
   const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
-  const archivo = new File([blob], `${nombre}.kml`, { type: 'application/vnd.google-earth.kml+xml' });
+  const archivo = new File([blob], nombre + '.kml', { type: 'application/vnd.google-earth.kml+xml' });
 
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [archivo] })) {
-    navigator.share({
-      files: [archivo],
-      title: nombre,
-      text: `Ruta operativa PC Santa Cruz · ${trackPuntos.length} puntos · ${fecha}`
-    });
-  } else {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `${nombre}.kml`;
-    a.click(); URL.revokeObjectURL(url);
+  if (navigator.share && navigator.canShare) {
+    try {
+      if (navigator.canShare({ files: [archivo] })) {
+        navigator.share({ files: [archivo], title: nombre,
+          text: 'Ruta operativa PC Santa Cruz - ' + trackPuntos.length + ' puntos - ' + fecha });
+        return;
+      }
+    } catch(e) {}
   }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre + '.kml';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
+
 
 function cargarKML(event) {
   const file = event.target.files[0];
