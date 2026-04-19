@@ -1744,43 +1744,63 @@ function enviarMapa() {
   }
 
   const fecha = new Date().toISOString().slice(0,10);
-  const nombre = 'Ruta_PC_' + fecha;
+  const hora = new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
 
-  const coords = trackPuntos.map(p => p.lon + ',' + p.lat + ',0').join(' ');
-  const placemarks = trackPuntos.map((p, i) =>
-    '<Placemark><name>Punto ' + (i+1) + ' - ' + new Date(p.t).toLocaleTimeString('es-AR') + '</name>' +
-    '<Point><coordinates>' + p.lon + ',' + p.lat + ',0</coordinates></Point></Placemark>'
-  ).join('');
+  const header = 'punto,latitud,longitud,fecha,hora';
+  const filas = trackPuntos.map((p, i) => {
+    const d = new Date(p.t);
+    return (i+1) + ',' + p.lat.toFixed(6) + ',' + p.lon.toFixed(6) + ',' +
+      d.toLocaleDateString('es-AR') + ',' + d.toLocaleTimeString('es-AR');
+  });
+  const csv = header + '\n' + filas.join('\n');
 
-  const kml = '<?xml version="1.0" encoding="UTF-8"?>' +
-    '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>' +
-    '<name>' + nombre + '</name>' +
-    '<Style id="ruta"><LineStyle><color>ff0000ef</color><width>3</width></LineStyle></Style>' +
-    '<Placemark><name>Ruta operativa - ' + trackPuntos.length + ' puntos</name>' +
-    '<styleUrl>#ruta</styleUrl>' +
-    '<LineString><coordinates>' + coords + '</coordinates></LineString></Placemark>' +
-    placemarks +
-    '</Document></kml>';
+  const texto = '\u{1F4CD} *RUTA PC SANTA CRUZ*\n' +
+    '*Fecha:* ' + fecha + ' \u00B7 ' + hora + '\n' +
+    '*Puntos registrados:* ' + trackPuntos.length + '\n\n' +
+    '*Coordenadas GPS:*\n' +
+    trackPuntos.map((p, i) =>
+      (i+1) + '. ' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) +
+      ' (' + new Date(p.t).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}) + ')'
+    ).join('\n') +
+    '\n\n_Protecci\u00F3n Civil Santa Cruz \u00B7 SIGAED_';
 
-  const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
-  const archivo = new File([blob], nombre + '.kml', { type: 'application/vnd.google-earth.kml+xml' });
-
-  if (navigator.share && navigator.canShare) {
-    try {
-      if (navigator.canShare({ files: [archivo] })) {
-        navigator.share({ files: [archivo], title: nombre,
-          text: 'Ruta operativa PC Santa Cruz - ' + trackPuntos.length + ' puntos - ' + fecha });
-        return;
-      }
-    } catch(e) {}
-  }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = nombre + '.kml';
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+  mostrarModalExport(csv, texto, fecha);
 }
 
+function mostrarModalExport(csv, texto, fecha) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+
+  overlay.innerHTML =
+    '<div style="background:#111820;border:1px solid #1e2d3d;border-radius:20px 20px 0 0;width:100%;padding:20px;display:flex;flex-direction:column;gap:12px">' +
+      '<div style="font-family:Bebas Neue,cursive;font-size:1.2rem;letter-spacing:2px;color:#f97316">\u{1F4E4} EXPORTAR RUTA GPS</div>' +
+      '<div style="font-family:IBM Plex Mono,monospace;font-size:0.7rem;color:#64748b">' + trackPuntos.length + ' puntos \u00B7 ' + fecha + '</div>' +
+      '<button id="btn-exp-wsp" style="padding:13px;background:#25d366;border:none;border-radius:10px;color:white;font-family:Bebas Neue,cursive;font-size:1.1rem;letter-spacing:2px;cursor:pointer">\u{1F4F2} ENVIAR POR WHATSAPP</button>' +
+      '<button id="btn-exp-csv" style="padding:13px;background:#1e2d3d;border:1px solid #22d3ee;border-radius:10px;color:#22d3ee;font-family:Bebas Neue,cursive;font-size:1.1rem;letter-spacing:2px;cursor:pointer">\u{1F4C4} DESCARGAR CSV</button>' +
+      '<button id="btn-exp-cancel" style="padding:11px;background:transparent;border:1px solid #1e2d3d;border-radius:10px;color:#64748b;font-family:IBM Plex Mono,monospace;font-size:0.75rem;cursor:pointer">Cancelar</button>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#btn-exp-wsp').onclick = function() {
+    window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+    document.body.removeChild(overlay);
+  };
+
+  overlay.querySelector('#btn-exp-csv').onclick = function() {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'Ruta_PC_' + fecha + '.csv';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    document.body.removeChild(overlay);
+  };
+
+  overlay.querySelector('#btn-exp-cancel').onclick = function() {
+    document.body.removeChild(overlay);
+  };
+}
 
 function cargarKML(event) {
   const file = event.target.files[0];
