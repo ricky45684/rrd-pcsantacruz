@@ -182,12 +182,18 @@ body {
 /* MAP PANEL */
 #panel-mapa {
   padding: 0;
+  position: relative;
 }
 
 #map {
   width: 100%;
   height: 100%;
-  min-height: 300px;
+  min-height: 400px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .map-overlay {
@@ -768,42 +774,10 @@ body {
 
 
 /* ═══ TOOLBOX ═══ */
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* reglas globales removidas */
 
-body {
-  font-family: 'IBM Plex Sans', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
 
 /* HEADER */
-.header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-.header-title h1 {
-  font-family: 'Bebas Neue', cursive;
-  font-size: 1.3rem;
-  letter-spacing: 3px;
-  color: var(--accent);
-  line-height: 1;
-}
-.header-title p {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.55rem;
-  color: var(--muted);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
 
 /* GRID DE HERRAMIENTAS */
 .tools-grid {
