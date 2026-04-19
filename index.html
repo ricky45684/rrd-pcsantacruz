@@ -227,7 +227,7 @@ body {
 .coord-sep { color: var(--border); }
 
 .map-actions {
-  bottom: 16px;
+  top: 58px;
   left: 10px;
   right: 10px;
   display: flex;
@@ -1659,26 +1659,13 @@ function centrarGPS() {
 // MAPA + CAPAS
 // ═══════════════════════════════════
 let currentLayer = null;
-
-const LAYERS = {
-  calles: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19, attribution: '© OpenStreetMap, © CARTO'
-  }),
-  satelite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19, attribution: '© Esri'
-  }),
-  relieve: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    maxZoom: 17, attribution: '© OpenTopoMap'
-  }),
-};
+let LAYERS = null;
 
 function setLayer(nombre) {
-  if (!map) return;
+  if (!map || !LAYERS) return;
   if (currentLayer) map.removeLayer(currentLayer);
   currentLayer = LAYERS[nombre];
   currentLayer.addTo(map);
-
-  // Actualizar botones
   document.querySelectorAll('#btn-calles, #btn-satelite, #btn-relieve').forEach(b => b.classList.remove('active-layer'));
   document.getElementById('btn-' + nombre)?.classList.add('active-layer');
 }
@@ -1686,6 +1673,18 @@ function setLayer(nombre) {
 function initMap() {
   if (mapInited) return;
   mapInited = true;
+
+  LAYERS = {
+    calles: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap, © CARTO'
+    }),
+    satelite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: '© Esri'
+    }),
+    relieve: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      maxZoom: 17, attribution: '© OpenTopoMap'
+    }),
+  };
 
   map = L.map('map', {
     center: [-50.5, -69.0],
