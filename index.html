@@ -231,32 +231,44 @@ body {
   left: 10px;
   right: 10px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   pointer-events: all;
+}
+
+.map-actions-row {
+  display: flex;
+  gap: 6px;
 }
 
 .map-btn {
   flex: 1;
-  padding: 10px 8px;
+  padding: 9px 6px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: rgba(10,14,20,0.88);
   color: var(--text);
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   text-transform: uppercase;
   cursor: pointer;
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .map-btn:active { transform: scale(0.95); }
 .map-btn.primary { border-color: var(--accent); color: var(--accent); }
 .map-btn.secondary { border-color: var(--accent2); color: var(--accent2); }
+.map-btn.active-layer { border-color: var(--accent3); color: var(--accent3); background: rgba(74,222,128,0.12); }
+.map-btn.tracking { border-color: var(--danger); color: var(--danger); }
+.map-btn.tracking.on { background: rgba(239,68,68,0.15); animation: track-pulse 1.5s infinite; }
+
+@keyframes track-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
 #kml-input { display: none; }
 
@@ -1190,8 +1202,17 @@ body {
       </div>
     </div>
     <div class="map-overlay map-actions" id="map-actions">
-      <button class="map-btn primary" onclick="centrarGPS()">📍 MI POSICIÓN</button>
-      <button class="map-btn secondary" onclick="document.getElementById('kml-input').click()">🗺️ CARGAR KML</button>
+      <div class="map-actions-row">
+        <button class="map-btn primary" onclick="centrarGPS()">📍 Ubicación</button>
+        <button class="map-btn active-layer" id="btn-calles" onclick="setLayer('calles')">🗺️ Calles</button>
+        <button class="map-btn" id="btn-satelite" onclick="setLayer('satelite')">🛰️ Satélite</button>
+        <button class="map-btn" id="btn-relieve" onclick="setLayer('relieve')">⛰️ Relieve</button>
+      </div>
+      <div class="map-actions-row">
+        <button class="map-btn secondary" onclick="document.getElementById('kml-input').click()">📂 Cargar KML</button>
+        <button class="map-btn tracking" id="btn-track" onclick="toggleTracking()">⏺ Grabar ruta</button>
+        <button class="map-btn" id="btn-enviar-mapa" onclick="enviarMapa()" style="display:none">📤 Enviar mapa</button>
+      </div>
       <input type="file" id="kml-input" accept=".kml" onchange="cargarKML(event)">
     </div>
   </div>
@@ -1635,8 +1656,33 @@ function centrarGPS() {
 }
 
 // ═══════════════════════════════════
-// MAPA
+// MAPA + CAPAS
 // ═══════════════════════════════════
+let currentLayer = null;
+
+const LAYERS = {
+  calles: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap, © CARTO'
+  }),
+  satelite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, attribution: '© Esri'
+  }),
+  relieve: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom: 17, attribution: '© OpenTopoMap'
+  }),
+};
+
+function setLayer(nombre) {
+  if (!map) return;
+  if (currentLayer) map.removeLayer(currentLayer);
+  currentLayer = LAYERS[nombre];
+  currentLayer.addTo(map);
+
+  // Actualizar botones
+  document.querySelectorAll('#btn-calles, #btn-satelite, #btn-relieve').forEach(b => b.classList.remove('active-layer'));
+  document.getElementById('btn-' + nombre)?.classList.add('active-layer');
+}
+
 function initMap() {
   if (mapInited) return;
   mapInited = true;
@@ -1647,10 +1693,7 @@ function initMap() {
     zoomControl: true
   });
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
-    attribution: '© OpenStreetMap contributors, © CARTO'
-  }).addTo(map);
+  setLayer('calles');
 
   if (userLat) {
     userMarker = L.circleMarker([userLat, userLon], {
@@ -1661,6 +1704,112 @@ function initMap() {
   }
 
   setTimeout(() => map.invalidateSize(), 100);
+}
+
+// ═══════════════════════════════════
+// TRACKING GPS
+// ═══════════════════════════════════
+let trackingOn = false;
+let trackPuntos = [];
+let trackPolyline = null;
+let trackInterval = null;
+const TRACK_INTERVAL_MS = 60000; // 1 minuto
+
+function toggleTracking() {
+  const btn = document.getElementById('btn-track');
+  const btnEnviar = document.getElementById('btn-enviar-mapa');
+
+  if (!trackingOn) {
+    trackingOn = true;
+    btn.textContent = '⏹ Detener';
+    btn.classList.add('on');
+
+    // Agregar punto inmediato si hay GPS
+    agregarPuntoTracking();
+
+    // Luego cada 1 minuto
+    trackInterval = setInterval(agregarPuntoTracking, TRACK_INTERVAL_MS);
+  } else {
+    trackingOn = false;
+    clearInterval(trackInterval);
+    trackInterval = null;
+    btn.textContent = '⏺ Grabar ruta';
+    btn.classList.remove('on');
+
+    if (trackPuntos.length > 0) {
+      btnEnviar.style.display = 'flex';
+    }
+  }
+}
+
+function agregarPuntoTracking() {
+  if (!userLat || !map) return;
+  const punto = { lat: userLat, lon: userLon, t: new Date().toISOString() };
+  trackPuntos.push(punto);
+
+  // Dibujar línea en el mapa
+  const latlngs = trackPuntos.map(p => [p.lat, p.lon]);
+  if (trackPolyline) {
+    map.removeLayer(trackPolyline);
+  }
+  trackPolyline = L.polyline(latlngs, {
+    color: '#ef4444', weight: 3, opacity: 0.9,
+    dashArray: '6,4'
+  }).addTo(map);
+
+  // Punto en el mapa
+  L.circleMarker([userLat, userLon], {
+    radius: 4, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 1
+  }).addTo(map);
+}
+
+function enviarMapa() {
+  if (trackPuntos.length === 0) return;
+
+  const fecha = new Date().toISOString().slice(0,10);
+  const nombre = `Ruta_PC_${fecha}`;
+
+  // Generar KML
+  const coords = trackPuntos.map(p => `${p.lon},${p.lat},0`).join('\n                ');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${nombre}</name>
+    <Style id="ruta">
+      <LineStyle><color>ff0000ef</color><width>3</width></LineStyle>
+    </Style>
+    <Placemark>
+      <name>Ruta operativa</name>
+      <styleUrl>#ruta</styleUrl>
+      <LineString>
+        <coordinates>
+                ${coords}
+        </coordinates>
+      </LineString>
+    </Placemark>
+    ${trackPuntos.map((p, i) => `
+    <Placemark>
+      <name>Punto ${i+1} · ${new Date(p.t).toLocaleTimeString('es-AR')}</name>
+      <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
+    </Placemark>`).join('')}
+  </Document>
+</kml>`;
+
+  const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+  const archivo = new File([blob], `${nombre}.kml`, { type: 'application/vnd.google-earth.kml+xml' });
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [archivo] })) {
+    navigator.share({
+      files: [archivo],
+      title: nombre,
+      text: `Ruta operativa PC Santa Cruz · ${trackPuntos.length} puntos · ${fecha}`
+    });
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${nombre}.kml`;
+    a.click(); URL.revokeObjectURL(url);
+  }
 }
 
 function cargarKML(event) {
@@ -2376,8 +2525,14 @@ async function reproducirSOS() {
     // Vibración
     if (navigator.vibrate) navigator.vibrate(dur);
 
+    // Linterna ON
+    await encenderLinternaDirecta(true);
+
     await new Promise(r => setTimeout(r, dur));
     osc.stop();
+
+    // Linterna OFF
+    await encenderLinternaDirecta(false);
 
     // Apagar símbolo
     if (morseMap[i] !== undefined) {
@@ -2390,6 +2545,24 @@ async function reproducirSOS() {
   if (sosActivo) reproducirSOS(); // repetir
 }
 
+// Control directo de linterna para SOS (sin toggle)
+async function encenderLinternaDirecta(estado) {
+  try {
+    if (estado && !linternaTrack) {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: 1 }
+      });
+      linternaTrack = stream.getVideoTracks()[0];
+    }
+    if (linternaTrack) {
+      const caps = linternaTrack.getCapabilities();
+      if (caps.torch) {
+        await linternaTrack.applyConstraints({ advanced: [{ torch: estado }] });
+      }
+    }
+  } catch(e) {}
+}
+
 function toggleSOS() {
   const btn = document.getElementById('btn-sos');
   const status = document.getElementById('sos-status');
@@ -2399,14 +2572,20 @@ function toggleSOS() {
   if (sosActivo) {
     btn.textContent = '⏹ DETENER SOS';
     btn.classList.add('active');
-    status.textContent = '⚠️ SOS ACTIVO — Morse + vibración';
+    status.textContent = '⚠️ SOS ACTIVO — Morse + vibración + linterna';
     reproducirSOS();
   } else {
     btn.textContent = '🆘 ACTIVAR SOS';
     btn.classList.remove('active');
-    status.textContent = 'Morse + vibración';
+    status.textContent = 'Morse + vibración + linterna';
     if (navigator.vibrate) navigator.vibrate(0);
     morseSpans.forEach(s => s.classList.remove('lit'));
+    encenderLinternaDirecta(false);
+    // Liberar track de linterna
+    if (linternaTrack && !linternaOn) {
+      linternaTrack.stop();
+      linternaTrack = null;
+    }
   }
 }
 
