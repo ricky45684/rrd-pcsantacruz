@@ -202,18 +202,29 @@ body {
   pointer-events: none;
 }
 
-.map-coords {
+/* PANEL DE CONTROL FLOTANTE — engloba coordenadas + botones */
+.map-control-panel {
+  position: absolute;
+  z-index: 1000;
   top: 10px;
   left: 10px;
   right: 10px;
-  background: rgba(10,14,20,0.88);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 12px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(180,180,180,0.25);
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.map-coords {
+  padding: 4px 8px;
   display: flex;
   align-items: center;
   gap: 10px;
-  backdrop-filter: blur(8px);
 }
 
 .coord-label {
@@ -233,9 +244,6 @@ body {
 .coord-sep { color: var(--border); }
 
 .map-actions {
-  top: 58px;
-  left: 10px;
-  right: 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -252,13 +260,12 @@ body {
   padding: 9px 6px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(10,14,20,0.88);
+  background: rgba(10,14,20,0.55);
   color: var(--text);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.6rem;
   text-transform: uppercase;
   cursor: pointer;
-  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1159,7 +1166,8 @@ body {
   <!-- MAPA -->
   <div class="panel active" id="panel-mapa" style="padding:0;position:relative;">
     <div id="map"></div>
-    <div class="map-overlay map-coords" id="map-coords">
+    <div class="map-control-panel" id="map-control-panel">
+    <div class="map-coords" id="map-coords">
       <div>
         <div class="coord-label">Latitud</div>
         <div class="coord-value" id="coord-lat">--</div>
@@ -1175,7 +1183,7 @@ body {
         <div class="coord-value" id="coord-acc" style="color:var(--muted)">--</div>
       </div>
     </div>
-    <div class="map-overlay map-actions" id="map-actions">
+    <div class="map-actions" id="map-actions">
       <div class="map-actions-row">
         <button class="map-btn primary" onclick="centrarGPS()">📍 Ubicación</button>
         <button class="map-btn active-layer" id="btn-calles" onclick="setLayer('calles')">🗺️ Calles</button>
@@ -1187,6 +1195,7 @@ body {
         <button class="map-btn primary" onclick="enviarMapa()">📤 Enviar mapa</button>
       </div>
       <input type="file" id="kml-input" accept=".kml" onchange="cargarKML(event)">
+    </div>
     </div>
   </div>
 
